@@ -10,6 +10,13 @@ export type ProcessOk = {
   parsed: ParsedMovimiento;
 };
 
+/** Respuesta solo texto: consejo, pedir monto, etc. Sin movimiento ni RPC. */
+export type ProcessTextoSinMovimiento = {
+  ok: true;
+  kind: 'consejo' | 'aclaracion_monto';
+  texto: string;
+};
+
 export type ProcessErr = {
   ok: false;
   phase: 'parse' | 'rpc' | 'resultado';
@@ -17,7 +24,7 @@ export type ProcessErr = {
   parsed?: ParsedMovimiento;
 };
 
-export type ProcessResult = ProcessOk | ProcessErr;
+export type ProcessResult = ProcessOk | ProcessErr | ProcessTextoSinMovimiento;
 
 function validateParsed(p: ParsedMovimiento): string | null {
   if (p.monto <= 0 || !Number.isFinite(p.monto)) {
@@ -30,7 +37,8 @@ function validateParsed(p: ParsedMovimiento): string | null {
 }
 
 /**
- * Procesa un mensaje de usuario: parsing (regex; LLM opcional), validación, RPC transaccional.
+ * Procesa un mensaje: regex primero; si falla y hay `parseWithLlm`, LLM; validación; RPC.
+ * Los consejos locales van en `handleChatPost` / CLI, no aquí.
  */
 export async function processMessage(
   raw: string,
@@ -38,10 +46,11 @@ export async function processMessage(
     parseWithLlm?: (text: string) => Promise<ParsedMovimiento | null>;
   },
 ): Promise<ProcessResult> {
-  let parsed: ParsedMovimiento | null = parseMessageRegex(raw);
+  const text = raw.trim().normalize('NFC');
+  let parsed: ParsedMovimiento | null = parseMessageRegex(text);
 
   if (!parsed && options?.parseWithLlm) {
-    parsed = await options.parseWithLlm(raw);
+    parsed = await options.parseWithLlm(text);
   }
 
   if (!parsed) {

@@ -55,6 +55,10 @@ export async function construirRespuestaAsistente(
     return respuestaErrorCorta(resultado);
   }
 
+  if (!('movimiento_id' in resultado)) {
+    return resultado.texto;
+  }
+
   const { parsed } = resultado;
   const m = formatoMontoAsistente(parsed.monto, reglas);
   const saldos = await obtenerSaldosBalancesDesdeBd();

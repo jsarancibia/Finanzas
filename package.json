@@ -11,6 +11,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
+    "dev:web": "node scripts/dev-web.mjs",
     "typecheck": "tsc --noEmit",
     "db:apply": "node scripts/apply-migrations.mjs"
   },

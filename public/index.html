@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Asistente financiero</title>
+    <style>
+      :root {
+        --bg: #0f1419;
+        --surface: #1a222c;
+        --border: #2d3a47;
+        --text: #e7ecf1;
+        --muted: #8b9aab;
+        --accent: #3d9cf5;
+        --accent-dim: #2a6fa8;
+        --user-bg: #243044;
+        --err: #e07a5f;
+        --radius: 12px;
+        --font: system-ui, "Segoe UI", Roboto, sans-serif;
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f4f6f8;
+          --surface: #fff;
+          --border: #d8dee6;
+          --text: #1a222c;
+          --muted: #5c6b7a;
+          --user-bg: #e3eef9;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .shell {
+        width: 100%;
+        max-width: 42rem;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 1rem 1rem 0;
+      }
+
+      header {
+        padding: 0.5rem 0 1rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      header p {
+        margin: 0.35rem 0 0;
+        font-size: 0.8rem;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+
+      #log {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        min-height: 12rem;
+      }
+
+      .msg {
+        max-width: 92%;
+        padding: 0.65rem 0.85rem;
+        border-radius: var(--radius);
+        line-height: 1.45;
+        font-size: 0.95rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .msg.user {
+        align-self: flex-end;
+        background: var(--user-bg);
+        border: 1px solid var(--border);
+      }
+
+      .msg.assistant {
+        align-self: flex-start;
+        background: var(--surface);
+        border: 1px solid var(--border);
+      }
+
+      .msg.assistant.warn {
+        border-color: var(--err);
+        color: var(--text);
+      }
+
+      .msg.system {
+        align-self: center;
+        font-size: 0.8rem;
+        color: var(--muted);
+        background: transparent;
+        border: none;
+        padding: 0.25rem;
+      }
+
+      .msg.assistant.typing {
+        color: var(--muted);
+        font-style: italic;
+        border-style: dashed;
+      }
+
+      .composer {
+        position: sticky;
+        bottom: 0;
+        padding: 1rem 0 max(1rem, env(safe-area-inset-bottom));
+        background: linear-gradient(to top, var(--bg) 70%, transparent);
+      }
+
+      .row {
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-end;
+      }
+
+      textarea {
+        flex: 1;
+        resize: none;
+        min-height: 2.75rem;
+        max-height: 8rem;
+        padding: 0.65rem 0.75rem;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        line-height: 1.4;
+      }
+
+      textarea:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+
+      textarea:disabled {
+        opacity: 0.6;
+      }
+
+      button[type="submit"] {
+        padding: 0.65rem 1rem;
+        border-radius: var(--radius);
+        border: none;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      button[type="submit"]:hover:not(:disabled) {
+        background: var(--accent-dim);
+      }
+
+      button[type="submit"]:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .hint {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin-top: 0.5rem;
+        line-height: 1.35;
+      }
+
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <h1>Asistente financiero</h1>
+        <p>
+          Escribe en lenguaje natural. Los saldos y confirmaciones vienen del servidor; aquí solo se
+          muestran.
+        </p>
+      </header>
+      <div id="log" role="log" aria-live="polite" aria-relevant="additions"></div>
+      <form class="composer" id="form" autocomplete="off">
+        <div class="row">
+          <label class="visually-hidden" for="input">Mensaje</label>
+          <textarea
+            id="input"
+            name="message"
+            rows="1"
+            placeholder="Ej. gasté 15000 en transporte"
+            required
+            aria-label="Mensaje para el asistente"
+          ></textarea>
+          <button type="submit" id="send">Enviar</button>
+        </div>
+        <p class="hint">
+          Ejemplos: «gané 100000», «gasté 20000 en comida», «ahorré 30000 en banco estado».
+        </p>
+      </form>
+    </div>
+    <script>
+      (function () {
+        const logEl = document.getElementById("log");
+        const form = document.getElementById("form");
+        const input = document.getElementById("input");
+        const sendBtn = document.getElementById("send");
+
+        function scrollToBottom() {
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function appendBubble(role, text, opts) {
+          const div = document.createElement("div");
+          div.className = "msg " + role + (opts && opts.warn ? " warn" : "");
+          div.textContent = text;
+          logEl.appendChild(div);
+          requestAnimationFrame(scrollToBottom);
+        }
+
+        function appendSystem(text) {
+          const div = document.createElement("div");
+          div.className = "msg system";
+          div.textContent = text;
+          logEl.appendChild(div);
+          requestAnimationFrame(scrollToBottom);
+        }
+
+        function showTyping() {
+          const div = document.createElement("div");
+          div.className = "msg assistant typing";
+          div.setAttribute("aria-busy", "true");
+          div.textContent = "Escribiendo…";
+          logEl.appendChild(div);
+          requestAnimationFrame(scrollToBottom);
+          return div;
+        }
+
+        function removeTyping(el) {
+          if (el && el.parentNode === logEl) {
+            logEl.removeChild(el);
+          }
+        }
+
+        async function sendMessage(text) {
+          const res = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: text }),
+          });
+
+          const ct = res.headers.get("content-type") || "";
+          let body;
+          try {
+            body = ct.includes("application/json") ? await res.json() : { raw: await res.text() };
+          } catch {
+            throw new Error("Respuesta no legible del servidor.");
+          }
+
+          if (!res.ok) {
+            const err =
+              body && typeof body.error === "string"
+                ? body.error
+                : "Error HTTP " + res.status;
+            throw new Error(err);
+          }
+
+          if (!body || typeof body.texto !== "string") {
+            throw new Error("Formato de respuesta inesperado.");
+          }
+
+          return body;
+        }
+
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+          const text = input.value.trim();
+          if (!text) return;
+
+          appendBubble("user", text);
+          input.value = "";
+          input.style.height = "auto";
+
+          sendBtn.disabled = true;
+          input.disabled = true;
+
+          const typingEl = showTyping();
+
+          try {
+            const data = await sendMessage(text);
+            removeTyping(typingEl);
+            appendBubble("assistant", data.texto, { warn: !data.resultado || !data.resultado.ok });
+          } catch (err) {
+            removeTyping(typingEl);
+            appendBubble(
+              "assistant",
+              err instanceof Error ? err.message : String(err),
+              { warn: true },
+            );
+          } finally {
+            sendBtn.disabled = false;
+            input.disabled = false;
+            input.focus();
+            requestAnimationFrame(scrollToBottom);
+          }
+        });
+
+        input.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            form.requestSubmit();
+          }
+        });
+
+        input.addEventListener("input", function () {
+          input.style.height = "auto";
+          input.style.height = Math.min(input.scrollHeight, 128) + "px";
+        });
+
+        appendSystem("Listo. Escribe un mensaje y pulsa Enviar.");
+        input.focus();
+      })();
+    </script>
+  </body>
+</html>

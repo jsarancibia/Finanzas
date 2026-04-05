@@ -1,5 +1,6 @@
 import 'dotenv/config';
 
+import { getProcessMessageLlmOptions } from './config/enableLlm.js';
 import { loadReglas } from './config/loadReglas.js';
 import {
   MAX_ULTIMOS_MENSAJES,
@@ -7,18 +8,24 @@ import {
   registrarMensajeContexto,
 } from './services/memoriaContexto.js';
 import { testSupabaseConnectivity } from './services/supabaseClient.js';
-import { parseMessageWithLlm } from './services/parseMessageLlm.js';
+import { textoConsejoSiAplica } from './services/consejoLocal.js';
+import { textoPedirMontoGastoSiAplica } from './services/parseMessage.js';
 import { construirRespuestaAsistente } from './services/respuestasChat.js';
-import { processMessage } from './services/processMessage.js';
+import { processMessage, type ProcessResult } from './services/processMessage.js';
 
 async function main(): Promise<void> {
   const reglas = loadReglas();
   const mensaje = process.argv[2];
 
   if (mensaje) {
-    const resultado = await processMessage(mensaje, {
-      parseWithLlm: parseMessageWithLlm,
-    });
+    const trim = mensaje.trim().normalize('NFC');
+    const consejo = textoConsejoSiAplica(trim);
+    const pedirMonto = textoPedirMontoGastoSiAplica(trim);
+    const resultado: ProcessResult = consejo
+      ? { ok: true, kind: 'consejo', texto: consejo }
+      : pedirMonto
+        ? { ok: true, kind: 'aclaracion_monto', texto: pedirMonto }
+        : await processMessage(trim, getProcessMessageLlmOptions());
     const textoAsistente = await construirRespuestaAsistente(resultado, reglas);
     console.log(textoAsistente);
     if (resultado.ok) {

@@ -1,43 +1,72 @@
 import type { ParsedMovimiento } from './parseMessage.js';
 import { completarChat } from './llmClient.js';
 
-const SYSTEM_PARSE = `Eres un extractor de órdenes financieras en español (Chile, CLP).
-Devuelve SOLO un JSON con esta forma exacta:
-{"tipo":"ingreso"|"gasto"|"ahorro"|null,"monto":number|null,"categoria":string,"descripcion":string,"origen":string|null,"destino":string|null}
+/**
+ * Una sola tarea: extraer estructura. Sin historial (arquitectura3 — Fase 4).
+ * Prohibido: saldos, consejos al usuario, prosa, markdown, repetir reglas del backend.
+ */
+const SYSTEM_PARSE = `Tarea única: del siguiente mensaje en español (Chile, CLP) extrae UNA posible orden financiera.
+Responde solo un objeto JSON válido, sin markdown, sin texto antes ni después.
 
-Reglas:
-- tipo ingreso: el usuario recibe dinero (gané, me pagaron, sueldo, etc.)
-- tipo gasto: paga o compra algo (gasté, pagué, compré…)
-- tipo ahorro: aparta dinero para ahorrar (ahorrar, ahorra…)
-- monto: número en pesos chilenos sin separadores de miles (ej. 20000 no "20.000")
-- categoria: para gastos, categoría corta si se menciona (ej. comida); si no, ""
-- descripcion: texto libre breve o ""
-- origen/destino: cuenta o lugar si se dice; si no, null
-Si no es una orden financiera clara, usa tipo null y monto null.`;
+Claves obligatorias: tipo, monto, categoria, descripcion, origen, destino.
+- tipo: "ingreso" | "gasto" | "ahorro" | null
+- monto: entero positivo en pesos CLP o null si no hay cifra clara
+- categoria, descripcion: string cortos; vacío "" si no aplica
+- origen, destino: string corto o null
+
+Coloquial CLP: lucas/palos = miles (80 lucas→80000); Nk→N×1000; cien mil→100000.
+Un movimiento por mensaje. Varios montos sin total claro → tipo null, monto null.
+No calcules ni menciones saldos. No des consejos. No inventes cifras.`;
+
+/** Límite de caracteres del usuario al modelo (costo y foco). */
+const MAX_MENSAJE_LLM = 700;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
+/** Quita cerco \`\`\`json si el modelo lo añade. */
+function textoJsonBruto(raw: string): string {
+  const s = raw.trim();
+  const m = /^```(?:json)?\s*([\s\S]*?)```$/i.exec(s);
+  if (m) {
+    return m[1].trim();
+  }
+  return s;
+}
+
 /**
- * Parsing vía LLM cuando el regex no alcanza (arquitectura: regex + LLM si es necesario).
+ * Parsing vía Grok cuando el parser local no alcanza (Fase 4: prompt breve, salida estricta).
  */
 export async function parseMessageWithLlm(text: string): Promise<ParsedMovimiento | null> {
+  const user = text.trim();
+  if (!user) {
+    return null;
+  }
+  const recorte =
+    user.length > MAX_MENSAJE_LLM ? `${user.slice(0, MAX_MENSAJE_LLM)}…` : user;
+
   const raw = await completarChat(
     [
       { role: 'system', content: SYSTEM_PARSE },
-      { role: 'user', content: text.trim() },
+      { role: 'user', content: recorte },
     ],
-    { jsonMode: true },
+    {
+      jsonMode: true,
+      maxTokens: 160,
+      temperature: 0.1,
+    },
   );
 
   if (!raw) {
     return null;
   }
 
+  const jsonText = textoJsonBruto(raw);
+
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw) as unknown;
+    parsed = JSON.parse(jsonText) as unknown;
   } catch {
     return null;
   }

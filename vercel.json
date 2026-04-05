@@ -2,7 +2,7 @@
   "buildCommand": "npm run build",
   "functions": {
     "api/chat.mjs": {
-      "includeFiles": "dist/**"
+      "includeFiles": "{dist/**,config/**}"
     }
   }
 }

@@ -1,6 +1,6 @@
 /**
- * Cliente mínimo compatible con API tipo OpenAI (Chat Completions).
- * Sirve para OpenAI, proxies y proveedores con el mismo esquema (p. ej. algunos despliegues de Grok).
+ * Cliente HTTP para Grok (xAI): `POST {baseUrl}/chat/completions`.
+ * Por defecto `https://api.x.ai/v1` y un modelo Grok; sobreescribe con `LLM_BASE_URL` / `LLM_MODEL`.
  */
 
 export interface ChatMessage {
@@ -13,8 +13,8 @@ function getConfig(): { apiKey: string; baseUrl: string; model: string } | null 
   if (!apiKey) {
     return null;
   }
-  const baseUrl = (process.env.LLM_BASE_URL ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-  const model = process.env.LLM_MODEL?.trim() || 'gpt-4o-mini';
+  const baseUrl = (process.env.LLM_BASE_URL ?? 'https://api.x.ai/v1').replace(/\/$/, '');
+  const model = process.env.LLM_MODEL?.trim() || 'grok-3-mini';
   return { apiKey, baseUrl, model };
 }
 
@@ -23,18 +23,28 @@ function getConfig(): { apiKey: string; baseUrl: string; model: string } | null 
  */
 export async function completarChat(
   messages: ChatMessage[],
-  options?: { jsonMode?: boolean },
+  options?: { jsonMode?: boolean; maxTokens?: number; temperature?: number },
 ): Promise<string | null> {
   const cfg = getConfig();
   if (!cfg) {
     return null;
   }
 
+  const temp =
+    typeof options?.temperature === 'number' && options.temperature >= 0 && options.temperature <= 2
+      ? options.temperature
+      : 0.2;
+
   const body: Record<string, unknown> = {
     model: cfg.model,
     messages,
-    temperature: 0.2,
+    temperature: temp,
   };
+
+  const cap = options?.maxTokens;
+  if (typeof cap === 'number' && cap > 0) {
+    body.max_tokens = cap;
+  }
 
   if (options?.jsonMode) {
     body.response_format = { type: 'json_object' };
