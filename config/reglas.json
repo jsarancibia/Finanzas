@@ -1,0 +1,11 @@
+{
+  "moneda": "CLP",
+  "respuestas": {
+    "max_longitud": "corta",
+    "confirmaciones": true
+  },
+  "comportamiento": {
+    "no_repetir": true,
+    "usar_bd_como_fuente": true
+  }
+}
