@@ -10,6 +10,11 @@ import {
 import { testSupabaseConnectivity } from './services/supabaseClient.js';
 import { textoConsejoSiAplica } from './services/consejoLocal.js';
 import { textoPedirMontoGastoSiAplica } from './services/parseMessage.js';
+import { textoPedirMontoAsignacionSinCuentaSiAplica } from './services/parseMessageDisponibleSinCuenta.js';
+import {
+  textoNotaDistribucionDisponibleSiAplica,
+  textoPedirMontoTraspasoSiAplica,
+} from './services/parseMessageTraspaso.js';
 import { construirRespuestaAsistente } from './services/respuestasChat.js';
 import { processMessage, type ProcessResult } from './services/processMessage.js';
 
@@ -19,13 +24,22 @@ async function main(): Promise<void> {
 
   if (mensaje) {
     const trim = mensaje.trim().normalize('NFC');
+    const notaDistribucion = textoNotaDistribucionDisponibleSiAplica(trim);
+    const pedirMontoTraspaso = textoPedirMontoTraspasoSiAplica(trim);
+    const pedirMontoAsignacionSinCuenta = textoPedirMontoAsignacionSinCuentaSiAplica(trim);
     const consejo = textoConsejoSiAplica(trim);
     const pedirMonto = textoPedirMontoGastoSiAplica(trim);
-    const resultado: ProcessResult = consejo
-      ? { ok: true, kind: 'consejo', texto: consejo }
-      : pedirMonto
-        ? { ok: true, kind: 'aclaracion_monto', texto: pedirMonto }
-        : await processMessage(trim, getProcessMessageLlmOptions());
+    const resultado: ProcessResult = notaDistribucion
+      ? { ok: true, kind: 'consejo', texto: notaDistribucion }
+      : pedirMontoTraspaso
+        ? { ok: true, kind: 'aclaracion_monto', texto: pedirMontoTraspaso }
+        : pedirMontoAsignacionSinCuenta
+          ? { ok: true, kind: 'aclaracion_monto', texto: pedirMontoAsignacionSinCuenta }
+          : consejo
+            ? { ok: true, kind: 'consejo', texto: consejo }
+            : pedirMonto
+              ? { ok: true, kind: 'aclaracion_monto', texto: pedirMonto }
+              : await processMessage(trim, getProcessMessageLlmOptions());
     const textoAsistente = await construirRespuestaAsistente(resultado, reglas);
     console.log(textoAsistente);
     if (resultado.ok) {

@@ -1,0 +1,55 @@
+{
+  "terminos": [
+    {
+      "variantes": [
+        "gastar", "gastare", "gasté", "gaste", "gastando", "gasto",
+        "pagar", "pague", "pagué", "pagare", "pagaré", "pago",
+        "comprar", "compre", "compré", "comprando",
+        "ocupar", "ocupe", "ocupé", "ocupando",
+        "usar", "use", "usé", "usando",
+        "desembolsar", "desembolso", "desembolsé", "desembolse",
+        "invertir", "invierto", "invertí", "inverti",
+        "soltar", "solté", "solte",
+        "dejar plata", "dejar dinero", "dejar lucas"
+      ],
+      "canonico": "gastar",
+      "tipo": "gasto"
+    },
+    {
+      "variantes": [
+        "ahorrar", "ahorrare", "ahorraré", "ahorre", "ahorré", "ahorrando", "ahorro",
+        "guardar", "guarde", "guardé", "guardando",
+        "apartar", "aparte", "aparté", "apartando",
+        "reservar", "reserve", "reservé", "reservando",
+        "dejar", "deje", "dejé", "dejando",
+        "separar", "separe", "separé", "separando",
+        "meter a ahorro", "meter en ahorro", "guardar en ahorro",
+        "poner aparte", "poner en ahorro", "dejar aparte",
+        "reservar plata", "guardar plata", "guardar lucas",
+        "ahorrar plata", "ahorrar lucas"
+      ],
+      "canonico": "ahorrar",
+      "tipo": "ahorro"
+    },
+    {
+      "variantes": [
+        "agregar", "agregare", "agregaré", "agregue", "agregué", "agregando",
+        "depositar", "deposite", "deposité", "depositando",
+        "ingresar", "ingrese", "ingresé", "ingresando",
+        "meter", "meti", "metí", "metiendo",
+        "poner", "puse", "poniendo",
+        "sumar", "sume", "sumé", "sumando",
+        "abonar", "abone", "aboné", "abonando",
+        "transferir", "transferi", "transferí", "transferiré",
+        "traspasar", "traspasé", "traspase",
+        "enviar", "envie", "envié", "mandar", "mande", "mandé",
+        "cargar", "cargue", "cargué",
+        "agregar plata", "agregar dinero", "agregar lucas",
+        "meter plata", "meter dinero", "meter lucas",
+        "poner plata", "poner dinero", "poner lucas"
+      ],
+      "canonico": "agregar",
+      "tipo": "ingreso"
+    }
+  ]
+}

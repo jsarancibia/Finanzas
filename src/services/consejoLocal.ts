@@ -1,12 +1,36 @@
+import { parecePrefijoMovimientoDesdeTerminos } from '../config/loadNormalizacionTerminosChilenos.js';
+
 /**
  * arquitectura3 — Fase 3: consejos breves y prudentes sin tocar saldos ni RPC.
  * Solo texto; no inventa datos de bancos ni productos concretos.
  */
 
 function pareceMovimiento(t: string): boolean {
-  return /^(gané|gane|gano|ganó|gasté|gaste|gasto|ahorr|pag[uú]e|invert[ií]|inverti|deposit|saqu[eé]|guard[eé]|guarde|guard[oó]|dej[eé]|deje|dej[oó]|apart[eé]|aparte|apart[oó]|met[ií]|meti|me\s+pagaron|me\s+depositaron|me\s+lleg[oó]|me\s+llegaron)/i.test(
-    t.trim(),
-  );
+  const trim = t.trim();
+  if (
+    /^(gané|gane|gano|ganó|gasté|gaste|gasto|ahorr|agreg|coloc|recib|pag[uú]e|invert[ií]|inverti|deposit|saqu[eé]|guard[eé]|guarde|guard[oó]|dej[eé]|deje|dej[oó]|apart[eé]|aparte|apart[oó]|met[ií]|meti|me\s+pagaron|me\s+depositaron|me\s+lleg[oó]|me\s+llegaron)/i.test(
+      trim,
+    )
+  ) {
+    return true;
+  }
+  return parecePrefijoMovimientoDesdeTerminos(trim);
+}
+
+/** Saludo sin cifra: no debe pasar al parser de movimientos. */
+function textoSaludoCortoSiAplica(trim: string): string | null {
+  const t = trim.replace(/[!?.¿¡…]+$/gu, '').trim();
+  if (t.length === 0 || t.length > 40) {
+    return null;
+  }
+  if (
+    /^(hola+|buenas|hey|ei|qué\s+tal|que\s+tal|buenos\s+d[ií]as|buenas\s+tardes|buenas\s+noches)$/iu.test(
+      t,
+    )
+  ) {
+    return 'Hola. Puedes registrar ingresos, gastos o ahorros con el monto (por ejemplo: «ahorraré 15.000 en Banco Estado fondo mutuo»).';
+  }
+  return null;
 }
 
 /**
@@ -14,6 +38,10 @@ function pareceMovimiento(t: string): boolean {
  */
 export function textoConsejoSiAplica(texto: string): string | null {
   const t = texto.trim();
+  const saludo = textoSaludoCortoSiAplica(t);
+  if (saludo) {
+    return saludo;
+  }
   if (t.length < 4 || t.length > 160) {
     return null;
   }

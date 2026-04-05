@@ -59,11 +59,12 @@ export function contextoCompactoParaModelo(): string {
 export async function obtenerSaldosBalancesDesdeBd(): Promise<{
   saldo_disponible: number;
   saldo_ahorrado: number;
+  saldo_disponible_sin_cuenta: number;
 } | null> {
   try {
     const { data, error } = await getSupabaseService()
       .from('balances')
-      .select('saldo_disponible, saldo_ahorrado')
+      .select('saldo_disponible, saldo_ahorrado, saldo_disponible_sin_cuenta')
       .order('ultima_actualizacion', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -74,13 +75,17 @@ export async function obtenerSaldosBalancesDesdeBd(): Promise<{
 
     const disp = data.saldo_disponible;
     const ahor = data.saldo_ahorrado;
+    const scRaw = (data as { saldo_disponible_sin_cuenta?: unknown }).saldo_disponible_sin_cuenta;
     if (disp === null || ahor === null) {
       return null;
     }
 
+    const sc = scRaw != null && Number.isFinite(Number(scRaw)) ? Number(scRaw) : 0;
+
     return {
       saldo_disponible: Number(disp),
       saldo_ahorrado: Number(ahor),
+      saldo_disponible_sin_cuenta: sc,
     };
   } catch {
     return null;
@@ -97,5 +102,5 @@ export async function obtenerResumenFinancieroOpcional(): Promise<string | null>
     return null;
   }
   const reglas = loadReglas();
-  return `${reglas.moneda}: disponible ${saldos.saldo_disponible}, ahorrado ${saldos.saldo_ahorrado} (desde balances en BD).`;
+  return `${reglas.moneda}: disponible ${saldos.saldo_disponible} (sin cuenta ${saldos.saldo_disponible_sin_cuenta}), ahorrado ${saldos.saldo_ahorrado} (desde balances en BD).`;
 }

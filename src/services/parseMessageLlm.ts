@@ -1,4 +1,4 @@
-import type { ParsedMovimiento } from './parseMessage.js';
+import { destinoParaRegistro, type ParsedMovimiento } from './parseMessage.js';
 import { completarChat } from './llmClient.js';
 
 /**
@@ -9,13 +9,18 @@ const SYSTEM_PARSE = `Tarea única: del siguiente mensaje en español (Chile, CL
 Responde solo un objeto JSON válido, sin markdown, sin texto antes ni después.
 
 Claves obligatorias: tipo, monto, categoria, descripcion, origen, destino.
+Opcionales si el mensaje los menciona: banco, cuenta_producto (string o null).
 - tipo: "ingreso" | "gasto" | "ahorro" | null
 - monto: entero positivo en pesos CLP o null si no hay cifra clara
 - categoria, descripcion: string cortos; vacío "" si no aplica
 - origen, destino: string corto o null
+- banco: nombre del banco canónico (ej. "Banco Estado") o null
+- cuenta_producto: producto o subcuenta (ej. "Cuenta RUT", "Fondo mutuo") o null
 
 Coloquial CLP: lucas/palos = miles (80 lucas→80000); Nk→N×1000; cien mil→100000.
 Un movimiento por mensaje. Varios montos sin total claro → tipo null, monto null.
+Traspaso entre cuentas con patrón «de … a …» (ej. Cuenta RUT a Mercado Pago) → tipo null y monto null (otro módulo lo resuelve).
+Asignación «del disponible sin cuenta … en/a cuenta X» con monto → tipo null y monto null (otro módulo lo resuelve).
 No calcules ni menciones saldos. No des consejos. No inventes cifras.`;
 
 /** Límite de caracteres del usuario al modelo (costo y foco). */
@@ -94,12 +99,26 @@ export async function parseMessageWithLlm(text: string): Promise<ParsedMovimient
     ? null
     : String(parsed.destino);
 
-  return {
+  const bancoRaw = parsed.banco;
+  const cuentaRaw = parsed.cuenta_producto;
+  const banco =
+    bancoRaw === null || bancoRaw === undefined ? null : String(bancoRaw).trim() || null;
+  const cuentaProducto =
+    cuentaRaw === null || cuentaRaw === undefined ? null : String(cuentaRaw).trim() || null;
+
+  const base: ParsedMovimiento = {
     tipo,
     monto,
     categoria,
     descripcion,
     origen,
     destino,
+    banco,
+    cuentaProducto,
+  };
+
+  return {
+    ...base,
+    destino: destinoParaRegistro(base),
   };
 }

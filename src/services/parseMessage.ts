@@ -9,6 +9,32 @@ export interface ParsedMovimiento {
   descripcion: string;
   origen: string | null;
   destino: string | null;
+  /** Banco canónico (Chile); opcional. Si va con cuentaProducto, el RPC enlaza cuenta_id. */
+  banco?: string | null;
+  /** Producto o subcuenta (ej. Cuenta RUT, fondo mutuo). */
+  cuentaProducto?: string | null;
+}
+
+/**
+ * Texto de destino coherente con banco/producto para `movimientos.destino` y resúmenes.
+ */
+export function destinoParaRegistro(p: ParsedMovimiento): string {
+  const b = p.banco?.trim();
+  const c = p.cuentaProducto?.trim();
+  if (b && c) {
+    return `${b} · ${c}`;
+  }
+  const d = p.destino?.trim();
+  if (d) {
+    return d;
+  }
+  if (c) {
+    return c;
+  }
+  if (b) {
+    return b;
+  }
+  return '';
 }
 
 const LUCA = 1000;
@@ -89,8 +115,15 @@ export function parseFragmentoMonto(raw: string): number | null {
 
   m = /^(\d+(?:[.,]\d+)?)\s+mil$/i.exec(t);
   if (m) {
-    const n = parseMonto(m[1].replace(/\s/g, ''));
-    return n != null ? Math.round(n * LUCA) : null;
+    const rawNum = m[1].replace(/\s/g, '');
+    const n = parseMonto(rawNum);
+    if (n != null) {
+      // "600.000 mil": la cifra ya va en pesos con miles con punto; "mil" sobra.
+      if (n >= 1000 && /\.\d{3}\b/.test(rawNum)) {
+        return Math.round(n);
+      }
+      return Math.round(n * LUCA);
+    }
   }
 
   m =
@@ -116,6 +149,27 @@ function extractLeadingMonto(rest: string): { monto: number; rest: string } | nu
     const p = parseFragmentoMonto(chunk);
     if (p != null) {
       return { monto: p, rest: words.slice(n).join(' ').trim() };
+    }
+  }
+  return null;
+}
+
+/**
+ * Busca un monto coloquial o numérico en cualquier posición del texto (mensajes largos).
+ */
+export function buscarMontoEnTextoCompleto(text: string): number | null {
+  const words = text.trim().normalize('NFC').split(/\s+/).filter(Boolean);
+  if (words.length === 0) {
+    return null;
+  }
+  for (let i = 0; i < words.length; i++) {
+    const maxN = Math.min(5, words.length - i);
+    for (let n = maxN; n >= 1; n--) {
+      const chunk = words.slice(i, i + n).join(' ');
+      const p = parseFragmentoMonto(chunk);
+      if (p != null) {
+        return p;
+      }
     }
   }
   return null;
@@ -174,7 +228,7 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
   }
 
   const ahorro =
-    /^(ahorra|ahorrar|ahorre|ahorré)\s+([\d][\d.,]*)(?:\s+en\s+(.+))?$/i.exec(
+    /^(ahorra|ahorraré|ahorrare|ahorrar|ahorre|ahorré)\s+([\d][\d.,]*)(?:\s+en\s+(.+))?$/i.exec(
       t,
     );
   if (ahorro) {
@@ -193,10 +247,51 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
     };
   }
 
+  const ahorroAgregar =
+    /^(agregaré|agregare|colocaré|colocare)\s+un\s+ahorro\s+de\s+(.+)$/i.exec(t) ||
+    /^(agrego\s+un\s+ahorro|agregar\s+un\s+ahorro)\s+de\s+(.+)$/i.exec(t);
+  if (ahorroAgregar) {
+    const ext = extractLeadingMonto(ahorroAgregar[2].trim());
+    if (ext) {
+      const dest = limpiarRestoDetalle(ext.rest);
+      return {
+        tipo: 'ahorro',
+        monto: ext.monto,
+        categoria: '',
+        descripcion: '',
+        origen: null,
+        destino: dest || null,
+      };
+    }
+  }
+
+  const sueldo =
+    /^(recib[ií]|recibi|cobr[eé]|cobre)\s+(?:mi\s+|el\s+)?sueldo\s+de\s+(.+)$/i.exec(t);
+  if (sueldo) {
+    const ext = extractLeadingMonto(sueldo[2].trim());
+    if (ext) {
+      return {
+        tipo: 'ingreso',
+        monto: ext.monto,
+        categoria: '',
+        descripcion: 'sueldo',
+        origen: null,
+        destino: null,
+      };
+    }
+  }
+
   const ingCol =
     /^(me\s+)?(pagaron|depositaron|llegaron|llegó)\s+(.+)$/i.exec(t);
   if (ingCol) {
-    const ext = extractLeadingMonto(ingCol[3]);
+    const tail = ingCol[3].trim();
+    let ext = extractLeadingMonto(tail);
+    if (!ext) {
+      const mGlobal = buscarMontoEnTextoCompleto(t);
+      if (mGlobal != null && mGlobal > 0) {
+        ext = { monto: mGlobal, rest: tail };
+      }
+    }
     if (ext) {
       const det = limpiarRestoDetalle(ext.rest);
       return {

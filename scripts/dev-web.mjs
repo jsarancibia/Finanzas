@@ -1,6 +1,7 @@
 /**
  * Servidor local: estáticos en public/ + POST /api/chat (misma lógica que Vercel).
- * Uso: npm run build && npm run dev:web → http://localhost:3000
+ * Carga siempre `dist/` (JS compilado). `npm run dev:web` ejecuta `build` antes de arrancar.
+ * → http://localhost:3000
  */
 import 'dotenv/config';
 import fs from 'node:fs';
@@ -12,6 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const publicDir = path.resolve(root, 'public');
 const distChat = path.resolve(root, 'dist', 'routes', 'handleChatPost.js');
+const distResumen = path.resolve(root, 'dist', 'routes', 'handleResumenCuentasGet.js');
 const PREFERRED_PORT = Number(process.env.PORT) || 3000;
 
 const MIME = {
@@ -46,11 +48,37 @@ const server = http.createServer(async (req, res) => {
     req.headers.host || `localhost:${req.socket?.localPort ?? PREFERRED_PORT}`;
   const url = new URL(req.url || '/', `http://${host}`);
 
-  if (req.method === 'OPTIONS' && url.pathname === '/api/chat') {
+  if (
+    req.method === 'OPTIONS' &&
+    (url.pathname === '/api/chat' || url.pathname === '/api/resumen-cuentas')
+  ) {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader(
+      'Access-Control-Allow-Methods',
+      url.pathname === '/api/chat' ? 'POST, OPTIONS' : 'GET, OPTIONS',
+    );
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     res.writeHead(204).end();
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/resumen-cuentas') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    try {
+      if (!fs.existsSync(distResumen)) {
+        res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Falta dist/. Ejecuta antes: npm run build' }));
+        return;
+      }
+      const { handleResumenCuentasGet } = await import(pathToFileURL(distResumen).href);
+      const out = await handleResumenCuentasGet();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(out));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: msg }));
+    }
     return;
   }
 
@@ -140,7 +168,7 @@ function listenOnPort(srv, port) {
           `[dev:web] El puerto ${PREFERRED_PORT} estaba ocupado (¿otro npm run dev:web?). Usando ${port}.`,
         );
       }
-      console.log(`[dev:web] Asegúrate de tener .env y haber corrido: npm run build`);
+      console.log(`[dev:web] Código desde dist/ (build se ejecutó al iniciar dev:web). Requiere .env.`);
       return;
     } catch (e) {
       if (e && e.code === 'EADDRINUSE') {

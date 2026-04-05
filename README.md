@@ -26,7 +26,7 @@ Copia `.env.example` a `.env` y completa las variables.
 
 ## Interfaz (Fase 3, `arquitectura2.md`)
 
-La UI está en `public/index.html`: solo llama a `POST /api/chat` con `{ "message": "..." }` y muestra el texto que devuelve el backend (sin calcular saldos en el navegador).
+La UI está en `public/index.html`: `GET /api/resumen-cuentas` para el panel de cuentas/ahorros y `POST /api/chat` para el mensaje. El navegador no suma saldos; solo muestra lo que devuelve el backend.
 
 En local, **sin Vercel CLI**:
 
