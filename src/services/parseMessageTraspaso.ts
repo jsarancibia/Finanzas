@@ -20,6 +20,10 @@ export function mapExtremoTraspaso(frag: string): { banco: string; cuenta: strin
   if (/\bcuenta\s*rut\b|\brut\s+cuenta\b/i.test(s) || (/\brut\b/i.test(s) && /\bestado\b/i.test(s))) {
     return { banco: 'Banco Estado', cuenta: 'Cuenta RUT' };
   }
+  if (/\bmercado\s+libre\b/i.test(s)) {
+    const prod = detectProducto(s);
+    return { banco: 'Mercado Pago', cuenta: prod || 'Disponible' };
+  }
   if (/\bmercado\s+pago\b/i.test(s)) {
     const prod = detectProducto(s);
     return { banco: 'Mercado Pago', cuenta: prod || 'Disponible' };
@@ -31,6 +35,9 @@ export function mapExtremoTraspaso(frag: string): { banco: string; cuenta: strin
   }
   if (b) {
     return { banco: b, cuenta: 'Disponible' };
+  }
+  if (/\befectivo\b/i.test(s)) {
+    return { banco: 'Efectivo', cuenta: 'Efectivo' };
   }
   return null;
 }

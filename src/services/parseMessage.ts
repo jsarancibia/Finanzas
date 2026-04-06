@@ -1,4 +1,5 @@
 import { inferCategoriaGasto } from './categoriasMovimiento.js';
+import { bloqueaIngresoPorPalabraTengo } from './contextoNoEsIngresoNuevo.js';
 
 export type MovimientoTipo = 'ingreso' | 'gasto' | 'ahorro';
 
@@ -189,9 +190,10 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
     return null;
   }
 
-  /** «tengo 600.000», «tengo 80 lucas»… ingreso sin decir «disponible». */
+  /** «tengo 600.000», «tengo 80 lucas»… ingreso sin decir «disponible». arquitectura8: no si hay colchón/asignación. */
   if (
     /^tengo\s+/i.test(t) &&
+    !bloqueaIngresoPorPalabraTengo(t) &&
     !/\btengo\s+(?:un\s+)?ahorro\b/i.test(t) &&
     !/\btengo\s+ahorrado\b/i.test(t)
   ) {

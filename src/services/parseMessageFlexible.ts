@@ -1,5 +1,7 @@
 import { inferirTipoPorTerminosChilenos } from '../config/loadNormalizacionTerminosChilenos.js';
 import { inferCategoriaGasto } from './categoriasMovimiento.js';
+import { tieneSenalOrigenDineroExistente } from './contextoNoEsIngresoNuevo.js';
+import { parseAsignarDesdeDisponibleSinCuenta } from './parseMessageDisponibleSinCuenta.js';
 import {
   buscarMontoEnTextoCompleto,
   destinoParaRegistro,
@@ -81,6 +83,7 @@ function extraerSubcuentaTrasBanco(raw: string, banco: string | null): string | 
 }
 
 function detectTipoFlex(lower: string): MovimientoTipo | null {
+  const senalDineroExistente = tieneSenalOrigenDineroExistente(lower);
   if (/\bpasé\b|\bpase\b/.test(lower) && /\bahorro\b/.test(lower)) {
     return 'ahorro';
   }
@@ -117,10 +120,11 @@ function detectTipoFlex(lower: string): MovimientoTipo | null {
   if (/\bsueldo\b/.test(lower) && /\brecib[ií]\b|\brecibi\b|\bcobr[eé]\b|\bcobre\b/.test(lower)) {
     return 'ingreso';
   }
-  if (/\bpara\s+gastar\b/.test(lower)) {
+  if (!senalDineroExistente && /\bpara\s+gastar\b/.test(lower)) {
     return 'ingreso';
   }
   if (
+    !senalDineroExistente &&
     /\btengo\b/.test(lower) &&
     /\d/.test(lower) &&
     !/\btengo\s+(?:un\s+)?ahorro\b/.test(lower) &&
@@ -128,7 +132,7 @@ function detectTipoFlex(lower: string): MovimientoTipo | null {
   ) {
     return 'ingreso';
   }
-  if (/\btengo\b/.test(lower) && /\bdisponible\b/.test(lower)) {
+  if (!senalDineroExistente && /\btengo\b/.test(lower) && /\bdisponible\b/.test(lower)) {
     return 'ingreso';
   }
   if (/\bdispongo\b/.test(lower) && /\bdisponible\b/.test(lower)) {
@@ -234,6 +238,11 @@ export function enriquecerBancoYProducto(raw: string, p: ParsedMovimiento): Pars
 export function parseMessageFlexible(text: string): ParsedMovimiento | null {
   const raw = text.trim().normalize('NFC');
   if (!raw) {
+    return null;
+  }
+
+  /** No competir con asignación desde colchón (arquitectura7/8); `processMessage` la resuelve antes. */
+  if (parseAsignarDesdeDisponibleSinCuenta(raw)) {
     return null;
   }
 

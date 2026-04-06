@@ -40,8 +40,9 @@ export type ResumenDashboard = {
   /** Dinero disponible aún no asignado a ninguna cuenta (colchón en BD). */
   saldo_disponible_sin_cuenta: number;
   /**
-   * Dinero pendiente de repartir en cuentas: max(sin_cuenta, disponible_total − suma cuentas vista).
-   * Cubre ingresos sin cuenta aunque la columna `saldo_disponible_sin_cuenta` venga en 0.
+   * Dinero aún no reflejado en cuentas «disponible»: disponible_total − suma de esas cuentas (≥ 0).
+   * No usar max con `saldo_disponible_sin_cuenta`: si esa columna queda desfasada (p. ej. varias filas
+   * en `balances`), el panel mostraría pendiente fantasma aunque las cuentas ya sumen el total.
    */
   dinero_pendiente_repartir: number;
   saldo_ahorrado_total: number;
@@ -287,10 +288,7 @@ export async function obtenerResumenDashboard(reglas: Reglas): Promise<ResumenDa
   }, 0);
 
   const huecoVsTotal = Math.max(0, saldo_disponible - sumaCuentasDisponible);
-  const dinero_pendiente_repartir = Math.min(
-    saldo_disponible,
-    Math.max(saldo_disponible_sin_cuenta, huecoVsTotal),
-  );
+  const dinero_pendiente_repartir = Math.min(saldo_disponible, huecoVsTotal);
 
   if (seccion_disponible.length === 0 && saldo_disponible > 0 && dinero_pendiente_repartir === 0) {
     seccion_disponible.push({

@@ -225,9 +225,8 @@ async function ejecutarTraspaso(text: string): Promise<ProcessResult | null> {
 }
 
 /**
- * Procesa un mensaje: **regex → traspaso (de X a Y) → parser flexible → LLM** (este último solo si `parseWithLlm`
- * viene en `options`, p. ej. con `LLM_API_KEY` y `ENABLE_LLM` no desactivado).
- * Luego `enriquecerBancoYProducto`, validación y RPC. Consejos/saludos van en `handleChatPost` / CLI.
+ * Procesa un mensaje: **asignación desde disponible/sin cuenta (arquitectura7) → regex → traspaso → flexible → LLM**.
+ * Consejos/saludos van en `handleChatPost` / CLI.
  */
 export async function processMessage(
   raw: string,
@@ -236,13 +235,15 @@ export async function processMessage(
   },
 ): Promise<ProcessResult> {
   const text = raw.trim().normalize('NFC');
+
+  const asgPrimero = await ejecutarAsignacionDesdeSinCuenta(text);
+  if (asgPrimero) {
+    return asgPrimero;
+  }
+
   let parsed: ParsedMovimiento | null = parseMessageRegex(text);
 
   if (!parsed) {
-    const asgRes = await ejecutarAsignacionDesdeSinCuenta(text);
-    if (asgRes) {
-      return asgRes;
-    }
     const trRes = await ejecutarTraspaso(text);
     if (trRes) {
       return trRes;
