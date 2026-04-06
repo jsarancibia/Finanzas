@@ -72,7 +72,11 @@ const server = http.createServer(async (req, res) => {
       }
       const { handleResumenCuentasGet } = await import(pathToFileURL(distResumen).href);
       const out = await handleResumenCuentasGet();
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        Pragma: 'no-cache',
+      });
       res.end(JSON.stringify(out));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

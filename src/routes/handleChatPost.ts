@@ -14,6 +14,7 @@ import {
 import {
   registrarMensajeContexto,
 } from '../services/memoriaContexto.js';
+import { tryEjecutarCorreccion } from '../services/ejecutarCorreccion.js';
 import { processMessage, type ProcessResult } from '../services/processMessage.js';
 import { construirRespuestaAsistente } from '../services/respuestasChat.js';
 
@@ -34,7 +35,11 @@ export async function handleChatPost(mensajeUsuario: string): Promise<ChatPostRe
   const consejo = textoConsejoSiAplica(trim);
   const pedirMonto = textoPedirMontoGastoSiAplica(trim);
   let resultado: ProcessResult;
-  if (notaDistribucion) {
+
+  const correccion = await tryEjecutarCorreccion(trim);
+  if (correccion) {
+    resultado = correccion;
+  } else if (notaDistribucion) {
     resultado = { ok: true, kind: 'consejo', texto: notaDistribucion };
   } else if (pedirMontoTraspaso) {
     resultado = { ok: true, kind: 'aclaracion_monto', texto: pedirMontoTraspaso };

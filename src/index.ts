@@ -15,6 +15,7 @@ import {
   textoNotaDistribucionDisponibleSiAplica,
   textoPedirMontoTraspasoSiAplica,
 } from './services/parseMessageTraspaso.js';
+import { tryEjecutarCorreccion } from './services/ejecutarCorreccion.js';
 import { construirRespuestaAsistente } from './services/respuestasChat.js';
 import { processMessage, type ProcessResult } from './services/processMessage.js';
 
@@ -29,17 +30,23 @@ async function main(): Promise<void> {
     const pedirMontoAsignacionSinCuenta = textoPedirMontoAsignacionSinCuentaSiAplica(trim);
     const consejo = textoConsejoSiAplica(trim);
     const pedirMonto = textoPedirMontoGastoSiAplica(trim);
-    const resultado: ProcessResult = notaDistribucion
-      ? { ok: true, kind: 'consejo', texto: notaDistribucion }
-      : pedirMontoTraspaso
-        ? { ok: true, kind: 'aclaracion_monto', texto: pedirMontoTraspaso }
-        : pedirMontoAsignacionSinCuenta
-          ? { ok: true, kind: 'aclaracion_monto', texto: pedirMontoAsignacionSinCuenta }
-          : consejo
-            ? { ok: true, kind: 'consejo', texto: consejo }
-            : pedirMonto
-              ? { ok: true, kind: 'aclaracion_monto', texto: pedirMonto }
-              : await processMessage(trim, getProcessMessageLlmOptions());
+    const correccion = await tryEjecutarCorreccion(trim);
+    let resultado: ProcessResult;
+    if (correccion) {
+      resultado = correccion;
+    } else if (notaDistribucion) {
+      resultado = { ok: true, kind: 'consejo', texto: notaDistribucion };
+    } else if (pedirMontoTraspaso) {
+      resultado = { ok: true, kind: 'aclaracion_monto', texto: pedirMontoTraspaso };
+    } else if (pedirMontoAsignacionSinCuenta) {
+      resultado = { ok: true, kind: 'aclaracion_monto', texto: pedirMontoAsignacionSinCuenta };
+    } else if (consejo) {
+      resultado = { ok: true, kind: 'consejo', texto: consejo };
+    } else if (pedirMonto) {
+      resultado = { ok: true, kind: 'aclaracion_monto', texto: pedirMonto };
+    } else {
+      resultado = await processMessage(trim, getProcessMessageLlmOptions());
+    }
     const textoAsistente = await construirRespuestaAsistente(resultado, reglas);
     console.log(textoAsistente);
     if (resultado.ok) {

@@ -41,7 +41,14 @@ export type ProcessErr = {
   parsed?: ParsedMovimiento;
 };
 
-export type ProcessResult = ProcessOk | ProcessErr | ProcessTextoSinMovimiento;
+/** Undo / eliminar movimiento o corregir monto (parser de correcciones). */
+export type ProcessCorreccionOk = {
+  ok: true;
+  kind: 'correccion';
+  mensaje: string;
+};
+
+export type ProcessResult = ProcessOk | ProcessErr | ProcessTextoSinMovimiento | ProcessCorreccionOk;
 
 function validateParsed(p: ParsedMovimiento): string | null {
   if (p.monto <= 0 || !Number.isFinite(p.monto)) {

@@ -18,6 +18,8 @@ export default async function handler(req, res) {
     const { handleResumenCuentasGet } = await import('../dist/routes/handleResumenCuentasGet.js');
     const out = await handleResumenCuentasGet();
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
     return res.status(200).json(out);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

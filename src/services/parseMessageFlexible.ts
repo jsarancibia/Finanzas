@@ -120,6 +120,14 @@ function detectTipoFlex(lower: string): MovimientoTipo | null {
   if (/\bpara\s+gastar\b/.test(lower)) {
     return 'ingreso';
   }
+  if (
+    /\btengo\b/.test(lower) &&
+    /\d/.test(lower) &&
+    !/\btengo\s+(?:un\s+)?ahorro\b/.test(lower) &&
+    !/\btengo\s+ahorrado\b/.test(lower)
+  ) {
+    return 'ingreso';
+  }
   if (/\btengo\b/.test(lower) && /\bdisponible\b/.test(lower)) {
     return 'ingreso';
   }
@@ -161,6 +169,19 @@ export function enriquecerBancoYProducto(raw: string, p: ParsedMovimiento): Pars
   const t = raw.trim().normalize('NFC');
   if (!t || (p.tipo !== 'ahorro' && p.tipo !== 'ingreso')) {
     return p;
+  }
+
+  /** Ingreso colchón sin cuenta: no enlazar a ningún banco/cuenta por la palabra «disponible». */
+  if (p.tipo === 'ingreso' && /\btengo\s+disponible\b/i.test(t)) {
+    const cleared: ParsedMovimiento = {
+      ...p,
+      banco: null,
+      cuentaProducto: null,
+    };
+    return {
+      ...cleared,
+      destino: destinoParaRegistro(cleared),
+    };
   }
 
   let banco = p.banco?.trim() || null;

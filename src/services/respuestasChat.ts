@@ -45,6 +45,21 @@ export async function respuestaErrorCorta(
   if (resultado.error === 'sin_cuenta_insuficiente') {
     return 'En «disponible sin cuenta» no alcanza ese monto. Revisa el saldo del resumen o asigna un monto menor.';
   }
+  if (resultado.error === 'sin_movimientos') {
+    return 'No hay movimientos para corregir o deshacer.';
+  }
+  if (resultado.error === 'sin_movimiento_con_ese_monto') {
+    return 'No encontré un movimiento reciente con ese monto.';
+  }
+  if (resultado.error === 'gasto_sin_cuenta_no_reversible') {
+    return 'Ese gasto sin cuenta enlazada no se puede deshacer ni corregir automáticamente desde el chat. Ajusta en la base de datos o contacta soporte.';
+  }
+  if (resultado.error === 'saldo_insuficiente_para_revertir') {
+    return 'No se puede deshacer: los saldos actuales no cuadran con esa operación.';
+  }
+  if (resultado.error === 'ahorro_insuficiente_para_revertir') {
+    return 'No se puede deshacer ese ahorro: el saldo ahorrado en la base es menor que el monto del movimiento.';
+  }
   if (resultado.error === 'saldo_insuficiente') {
     const p = !resultado.ok && 'parsed' in resultado ? resultado.parsed : undefined;
     if (p && (p.tipo === 'ahorro' || p.tipo === 'gasto')) {
@@ -78,6 +93,10 @@ export async function construirRespuestaAsistente(
 ): Promise<string> {
   if (!resultado.ok) {
     return await respuestaErrorCorta(resultado, reglas);
+  }
+
+  if ('kind' in resultado && resultado.kind === 'correccion') {
+    return resultado.mensaje;
   }
 
   if (!('movimiento_id' in resultado)) {

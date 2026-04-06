@@ -1,4 +1,5 @@
 import type { Reglas } from '../config/loadReglas.js';
+import { fetchAllBalanceRows } from './fetchBalancesRows.js';
 import { getSupabaseService } from './supabaseClient.js';
 
 /** Tarjeta de cuenta (disponible o ahorro/inversión), datos desde BD. */
@@ -227,7 +228,7 @@ function construirSeccionAhorro(
 export async function obtenerResumenDashboard(reglas: Reglas): Promise<ResumenDashboard> {
   const supabase = getSupabaseService();
 
-  const [cuentasRes, movAhorroRes, gastosRes, balRes] = await Promise.all([
+  const [cuentasRes, movAhorroRes, gastosRes, balRows] = await Promise.all([
     supabase
       .from('cuentas')
       .select('nombre, tipo, saldo, banco_id, bancos(nombre)')
@@ -244,12 +245,7 @@ export async function obtenerResumenDashboard(reglas: Reglas): Promise<ResumenDa
       .eq('tipo', 'gasto')
       .order('fecha', { ascending: false })
       .limit(MAX_GASTOS_AGREGAR),
-    supabase
-      .from('balances')
-      .select('saldo_disponible, saldo_ahorrado, saldo_disponible_sin_cuenta')
-      .order('ultima_actualizacion', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+    fetchAllBalanceRows(),
   ]);
 
   if (cuentasRes.error) {
@@ -265,14 +261,19 @@ export async function obtenerResumenDashboard(reglas: Reglas): Promise<ResumenDa
   let saldo_disponible = 0;
   let saldo_disponible_sin_cuenta = 0;
   let saldo_ahorrado_total = 0;
-  if (!balRes.error && balRes.data) {
-    const d = balRes.data.saldo_disponible;
-    const a = balRes.data.saldo_ahorrado;
-    const sc = (balRes.data as { saldo_disponible_sin_cuenta?: unknown }).saldo_disponible_sin_cuenta;
-    saldo_disponible = d != null && Number.isFinite(Number(d)) ? Number(d) : 0;
-    saldo_ahorrado_total = a != null && Number.isFinite(Number(a)) ? Number(a) : 0;
-    saldo_disponible_sin_cuenta =
-      sc != null && Number.isFinite(Number(sc)) ? Number(sc) : 0;
+  for (const row of balRows) {
+    const d = row.saldo_disponible;
+    const a = row.saldo_ahorrado;
+    const sc = row.saldo_disponible_sin_cuenta;
+    if (d != null && Number.isFinite(Number(d))) {
+      saldo_disponible += Number(d);
+    }
+    if (a != null && Number.isFinite(Number(a))) {
+      saldo_ahorrado_total += Number(a);
+    }
+    if (sc != null && Number.isFinite(Number(sc))) {
+      saldo_disponible_sin_cuenta += Number(sc);
+    }
   }
 
   const cuentasRaw = (cuentasRes.data ?? []) as CuentaRow[];

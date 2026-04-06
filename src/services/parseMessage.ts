@@ -138,7 +138,8 @@ export function parseFragmentoMonto(raw: string): number | null {
   return parseMonto(t.replace(/\s/g, ''));
 }
 
-function extractLeadingMonto(rest: string): { monto: number; rest: string } | null {
+/** Primer monto coloquial al inicio de `rest` y el texto que sigue (p. ej. «en cuenta rut»). */
+export function extractLeadingMonto(rest: string): { monto: number; rest: string } | null {
   const words = rest.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) {
     return null;
@@ -186,6 +187,25 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
   const t = text.trim().normalize('NFC');
   if (!t) {
     return null;
+  }
+
+  /** «tengo 600.000», «tengo 80 lucas»… ingreso sin decir «disponible». */
+  if (
+    /^tengo\s+/i.test(t) &&
+    !/\btengo\s+(?:un\s+)?ahorro\b/i.test(t) &&
+    !/\btengo\s+ahorrado\b/i.test(t)
+  ) {
+    const montoTengo = buscarMontoEnTextoCompleto(t);
+    if (montoTengo != null && montoTengo > 0) {
+      return {
+        tipo: 'ingreso',
+        monto: montoTengo,
+        categoria: '',
+        descripcion: '',
+        origen: null,
+        destino: null,
+      };
+    }
   }
 
   const ingreso =

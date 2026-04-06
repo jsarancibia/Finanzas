@@ -1,0 +1,45 @@
+{
+  "correcciones": [
+    {
+      "tipo": "undo",
+      "variantes": [
+        "deshacer",
+        "deshaz",
+        "deshacer lo ultimo",
+        "deshaz lo ultimo",
+        "undo",
+        "revertir",
+        "revertir ultimo",
+        "me equivoque",
+        "me equivoqué"
+      ]
+    },
+    {
+      "tipo": "eliminar",
+      "variantes": [
+        "borra",
+        "elimina",
+        "quita",
+        "borrar",
+        "eliminar",
+        "quita eso",
+        "borra eso",
+        "elimina eso",
+        "quita ese movimiento",
+        "borra ese movimiento",
+        "elimina ese movimiento"
+      ]
+    },
+    {
+      "tipo": "corregir_monto",
+      "variantes": [
+        "no eran",
+        "era",
+        "corrige",
+        "corregir",
+        "ajusta",
+        "ajustar"
+      ]
+    }
+  ]
+}

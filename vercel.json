@@ -1,5 +1,16 @@
 {
   "buildCommand": "npm run build",
+  "headers": [
+    {
+      "source": "/api/resumen-cuentas",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, max-age=0"
+        }
+      ]
+    }
+  ],
   "functions": {
     "api/chat.mjs": {
       "includeFiles": "{dist/**,config/**}"

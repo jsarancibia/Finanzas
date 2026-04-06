@@ -28,8 +28,8 @@ DELETE FROM public.movimientos;
 DELETE FROM public.cuentas;
 DELETE FROM public.bancos;
 DELETE FROM public.balances;
-INSERT INTO public.balances (saldo_disponible, saldo_ahorrado, ultima_actualizacion)
-VALUES (0, 0, now());
+INSERT INTO public.balances (saldo_disponible, saldo_ahorrado, saldo_disponible_sin_cuenta, ultima_actualizacion)
+VALUES (0, 0, 0, now());
 COMMIT;
 `;
 
@@ -37,7 +37,9 @@ const db = postgres(url, { ssl: 'require', max: 1 });
 
 try {
   await db.unsafe(sql);
-  console.log('OK: datos limpiados. Balances reiniciados a 0 / 0.');
+  console.log(
+    'OK: datos limpiados (movimientos, cuentas, bancos). Balances en 0 (disponible, ahorrado, sin cuenta).',
+  );
 } catch (e) {
   console.error('Error:', e instanceof Error ? e.message : e);
   process.exit(1);

@@ -1,5 +1,5 @@
 import { loadReglas } from '../config/loadReglas.js';
-import { getSupabaseService } from './supabaseClient.js';
+import { fetchAllBalanceRows } from './fetchBalancesRows.js';
 
 /**
  * DISEÑO DE MEMORIA (arquitectura.md)
@@ -55,37 +55,40 @@ export function contextoCompactoParaModelo(): string {
   return buffer.map((m) => `${m.rol}: ${m.texto}`).join('\n');
 }
 
-/** Fila de balances más reciente (si hay varias), o null. */
+/** Saldos agregados de `balances` (si hubo varias filas, se suman; alinea con el dashboard). */
 export async function obtenerSaldosBalancesDesdeBd(): Promise<{
   saldo_disponible: number;
   saldo_ahorrado: number;
   saldo_disponible_sin_cuenta: number;
 } | null> {
   try {
-    const { data, error } = await getSupabaseService()
-      .from('balances')
-      .select('saldo_disponible, saldo_ahorrado, saldo_disponible_sin_cuenta')
-      .order('ultima_actualizacion', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error || !data) {
+    const data = await fetchAllBalanceRows();
+    if (!data.length) {
       return null;
     }
 
-    const disp = data.saldo_disponible;
-    const ahor = data.saldo_ahorrado;
-    const scRaw = (data as { saldo_disponible_sin_cuenta?: unknown }).saldo_disponible_sin_cuenta;
-    if (disp === null || ahor === null) {
-      return null;
+    let saldo_disponible = 0;
+    let saldo_ahorrado = 0;
+    let saldo_disponible_sin_cuenta = 0;
+    for (const row of data) {
+      const disp = row.saldo_disponible;
+      const ahor = row.saldo_ahorrado;
+      const scRaw = row.saldo_disponible_sin_cuenta;
+      if (disp != null && Number.isFinite(Number(disp))) {
+        saldo_disponible += Number(disp);
+      }
+      if (ahor != null && Number.isFinite(Number(ahor))) {
+        saldo_ahorrado += Number(ahor);
+      }
+      if (scRaw != null && Number.isFinite(Number(scRaw))) {
+        saldo_disponible_sin_cuenta += Number(scRaw);
+      }
     }
-
-    const sc = scRaw != null && Number.isFinite(Number(scRaw)) ? Number(scRaw) : 0;
 
     return {
-      saldo_disponible: Number(disp),
-      saldo_ahorrado: Number(ahor),
-      saldo_disponible_sin_cuenta: sc,
+      saldo_disponible,
+      saldo_ahorrado,
+      saldo_disponible_sin_cuenta,
     };
   } catch {
     return null;
