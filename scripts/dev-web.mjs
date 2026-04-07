@@ -13,7 +13,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const publicDir = path.resolve(root, 'public');
 const distChat = path.resolve(root, 'dist', 'routes', 'handleChatPost.js');
+const distChatHistory = path.resolve(root, 'dist', 'routes', 'handleChatHistoryGet.js');
+const distChatClear = path.resolve(root, 'dist', 'routes', 'handleChatClearPost.js');
 const distResumen = path.resolve(root, 'dist', 'routes', 'handleResumenCuentasGet.js');
+
+const API_WITH_OPTIONS = ['/api/chat', '/api/resumen-cuentas', '/api/chat-history', '/api/chat-clear'];
 const PREFERRED_PORT = Number(process.env.PORT) || 3000;
 
 const MIME = {
@@ -48,15 +52,13 @@ const server = http.createServer(async (req, res) => {
     req.headers.host || `localhost:${req.socket?.localPort ?? PREFERRED_PORT}`;
   const url = new URL(req.url || '/', `http://${host}`);
 
-  if (
-    req.method === 'OPTIONS' &&
-    (url.pathname === '/api/chat' || url.pathname === '/api/resumen-cuentas')
-  ) {
+  if (req.method === 'OPTIONS' && API_WITH_OPTIONS.includes(url.pathname)) {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader(
-      'Access-Control-Allow-Methods',
-      url.pathname === '/api/chat' ? 'POST, OPTIONS' : 'GET, OPTIONS',
-    );
+    const methods =
+      url.pathname === '/api/chat' || url.pathname === '/api/chat-clear'
+        ? 'POST, OPTIONS'
+        : 'GET, OPTIONS';
+    res.setHeader('Access-Control-Allow-Methods', methods);
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     res.writeHead(204).end();
     return;
@@ -115,7 +117,71 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ error: 'Falta "message" (string)' }));
         return;
       }
-      const out = await handleChatPost(message.trim());
+      const sessionId =
+        typeof body.sessionId === 'string' || typeof body.session_id === 'string'
+          ? String(body.sessionId ?? body.session_id).trim()
+          : null;
+      const out = await handleChatPost(message.trim(), { sessionId });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(out));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: msg }));
+    }
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/chat-history') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    try {
+      if (!fs.existsSync(distChatHistory)) {
+        res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Falta dist/. Ejecuta antes: npm run build' }));
+        return;
+      }
+      const { handleChatHistoryGet } = await import(pathToFileURL(distChatHistory).href);
+      const sessionId = url.searchParams.get('session_id');
+      const out = await handleChatHistoryGet(sessionId);
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        Pragma: 'no-cache',
+      });
+      res.end(JSON.stringify(out));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: msg }));
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/chat-clear') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    try {
+      if (!fs.existsSync(distChatClear)) {
+        res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Falta dist/. Ejecuta antes: npm run build' }));
+        return;
+      }
+      const { handleChatClearPost } = await import(pathToFileURL(distChatClear).href);
+      const raw = await readBody(req);
+      let body;
+      try {
+        body = raw ? JSON.parse(raw) : {};
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'JSON inválido' }));
+        return;
+      }
+      const sessionId =
+        typeof body.session_id === 'string'
+          ? body.session_id.trim()
+          : typeof body.sessionId === 'string'
+            ? body.sessionId.trim()
+            : null;
+      const out = await handleChatClearPost(sessionId);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(out));
     } catch (e) {

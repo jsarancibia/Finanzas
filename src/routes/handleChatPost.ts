@@ -16,6 +16,7 @@ import {
 } from '../services/memoriaContexto.js';
 import { tryEjecutarCorreccion } from '../services/ejecutarCorreccion.js';
 import { processMessage, type ProcessResult } from '../services/processMessage.js';
+import { appendExchangeToChatHistorial } from '../services/chatHistorialDb.js';
 import { construirRespuestaAsistente } from '../services/respuestasChat.js';
 
 export interface ChatPostResponse {
@@ -23,10 +24,19 @@ export interface ChatPostResponse {
   resultado: ProcessResult;
 }
 
+export type HandleChatPostOpciones = {
+  /** UUID de sesión del navegador; si falta o es inválido, no se persiste historial (arquitectura9). */
+  sessionId?: string | null;
+};
+
 /**
  * arquitectura3: consejo local si aplica; si no, regex → Grok → RPC.
+ * arquitectura9: opcionalmente persiste turno en `chat_messages`.
  */
-export async function handleChatPost(mensajeUsuario: string): Promise<ChatPostResponse> {
+export async function handleChatPost(
+  mensajeUsuario: string,
+  opciones?: HandleChatPostOpciones,
+): Promise<ChatPostResponse> {
   const reglas = loadReglas();
   const trim = mensajeUsuario.trim().normalize('NFC');
   const notaDistribucion = textoNotaDistribucionDisponibleSiAplica(trim);
@@ -54,9 +64,13 @@ export async function handleChatPost(mensajeUsuario: string): Promise<ChatPostRe
   }
   const texto = await construirRespuestaAsistente(resultado, reglas);
 
-  if (resultado.ok) {
-    registrarMensajeContexto('user', mensajeUsuario);
-    registrarMensajeContexto('assistant', texto.replace(/\s+/g, ' ').trim());
+  registrarMensajeContexto('user', mensajeUsuario);
+  registrarMensajeContexto('assistant', texto.replace(/\s+/g, ' ').trim());
+
+  try {
+    await appendExchangeToChatHistorial(opciones?.sessionId ?? null, trim, texto);
+  } catch {
+    /* persistencia de chat: no afecta respuesta financiera */
   }
 
   return { texto, resultado };

@@ -120,7 +120,16 @@ function detectTipoFlex(lower: string): MovimientoTipo | null {
   if (/\bsueldo\b/.test(lower) && /\brecib[ií]\b|\brecibi\b|\bcobr[eé]\b|\bcobre\b/.test(lower)) {
     return 'ingreso';
   }
-  if (!senalDineroExistente && /\bpara\s+gastar\b/.test(lower)) {
+  const pareceMoverAParaGastar =
+    /\bpara\s+gastar\b/.test(lower) &&
+    (/\bpasa(?:r)?\b/.test(lower) ||
+      /\bmueve(?:r)?\b/.test(lower) ||
+      /\basigna(?:r)?\b/.test(lower) ||
+      /\bdeja(?:r|me|mos)?\b|\bdejá\b/.test(lower) ||
+      /\btraspasa(?:r)?\b/.test(lower) ||
+      /\breparte(?:r)?\b/.test(lower)) &&
+    /\s+(?:a|en|al)\s+\S/.test(lower);
+  if (!senalDineroExistente && /\bpara\s+gastar\b/.test(lower) && !pareceMoverAParaGastar) {
     return 'ingreso';
   }
   if (

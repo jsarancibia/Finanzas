@@ -88,6 +88,37 @@ function extraerDestinoAsignacion(t: string): string | null {
 }
 
 /**
+ * «pasa dinero a mercado pago para gastar 5000» / «pasa 5000 a cuenta rut para gastar»:
+ * reparto desde pendiente hacia cuenta disponible, no ingreso nuevo (evita `para gastar` → ingreso en flexible).
+ */
+function parseVerboHaciaCuentaParaGastar(t: string): ParsedAsignacionSinCuenta | null {
+  const lower = t.toLowerCase();
+  if (!/\bpara\s+gast(?:ar|o)\b/.test(lower)) {
+    return null;
+  }
+  if (!tieneVerboAsignacion(t)) {
+    return null;
+  }
+  const monto = buscarMontoEnTextoCompleto(t);
+  if (monto == null || monto <= 0) {
+    return null;
+  }
+  const work = t.replace(/\s+para\s+gast(?:ar|o)\b[\s\S]*$/iu, '').trim();
+  if (!work) {
+    return null;
+  }
+  const destRaw = extraerDestinoAsignacion(work);
+  if (!destRaw) {
+    return null;
+  }
+  const mapped = mapExtremoTraspaso(destRaw);
+  if (!mapped) {
+    return null;
+  }
+  return { monto, banco: mapped.banco, cuentaProducto: mapped.cuenta };
+}
+
+/**
  * «de los 300.000 asigna 100.000 a cuenta rut» → monto operación = 100.000 (el de «de los» es solo referencia).
  */
 function parseMontoOperacionTrasDeLos(t: string): number | null {
@@ -143,6 +174,11 @@ function parseAsignacionDesdeDisponibleAmplio(raw: string): ParsedAsignacionSinC
   const t = raw.trim().normalize('NFC');
   if (!t || !tieneVerboAsignacion(t)) {
     return null;
+  }
+
+  const pasaParaGastar = parseVerboHaciaCuentaParaGastar(t);
+  if (pasaParaGastar) {
+    return pasaParaGastar;
   }
 
   const montoDeLos = parseMontoOperacionTrasDeLos(t);
@@ -292,7 +328,7 @@ export function parseAsignarDesdeDisponibleSinCuenta(text: string): ParsedAsigna
 }
 
 const MSG_PEDIR_MONTO_ASIGNACION =
-  'Para sacar plata de «disponible sin cuenta» y asignarla a una cuenta, indica el monto y el destino. Ejemplos: «80000 del disponible sin cuenta en cuenta rut», «del dinero disponible deja 130000 en Mercado Libre», «de los 300000 asigna 100000 a cuenta rut», «pasa 50 lucas del disponible a efectivo».';
+  'Para sacar plata de «disponible sin cuenta» y asignarla a una cuenta, indica el monto y el destino. Ejemplos: «80000 del disponible sin cuenta en cuenta rut», «pasa 5000 a Mercado Pago para gastar», «del dinero disponible deja 130000 en Mercado Libre», «de los 300000 asigna 100000 a cuenta rut», «pasa 50 lucas del disponible a efectivo».';
 
 /** Menciona el pool pero no hay cifra (ni destino útil). */
 export function textoPedirMontoAsignacionSinCuentaSiAplica(text: string): string | null {

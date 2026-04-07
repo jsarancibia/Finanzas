@@ -14,6 +14,8 @@ import {
   parsedMovimientoGastoTraspaso,
   parsedMovimientoIngresoTraspaso,
 } from './parseMessageTraspaso.js';
+import { tryCompletarGastoPendienteConCuenta } from './gastoCompletarRespuestaCuenta.js';
+import { resolverGastoCuentaAntesDeRpc } from './gastoRequiereCuenta.js';
 
 export type ProcessOk = {
   ok: true;
@@ -241,6 +243,33 @@ export async function processMessage(
     return asgPrimero;
   }
 
+  const gastoCompletado = tryCompletarGastoPendienteConCuenta(text);
+  if (gastoCompletado) {
+    const gastoRule = await resolverGastoCuentaAntesDeRpc(gastoCompletado);
+    if (gastoRule.accion === 'preguntar') {
+      return { ok: true, kind: 'aclaracion_monto', texto: gastoRule.texto };
+    }
+    let parsedG = gastoRule.parsed;
+    const vg = validateParsed(parsedG);
+    if (vg) {
+      return { ok: false, phase: 'parse', error: vg, parsed: parsedG };
+    }
+    const rpcG = await rpcAplicarMovimiento(parsedG);
+    if (!rpcG.ok) {
+      return {
+        ok: false,
+        phase: rpcG.phase,
+        error: rpcG.error,
+        parsed: parsedG,
+      };
+    }
+    return {
+      ok: true,
+      movimiento_id: rpcG.movimiento_id,
+      parsed: parsedG,
+    };
+  }
+
   let parsed: ParsedMovimiento | null = parseMessageRegex(text);
 
   if (!parsed) {
@@ -265,6 +294,12 @@ export async function processMessage(
   if (v) {
     return { ok: false, phase: 'parse', error: v, parsed };
   }
+
+  const gastoCuenta = await resolverGastoCuentaAntesDeRpc(parsed);
+  if (gastoCuenta.accion === 'preguntar') {
+    return { ok: true, kind: 'aclaracion_monto', texto: gastoCuenta.texto };
+  }
+  parsed = gastoCuenta.parsed;
 
   const rpc = await rpcAplicarMovimiento(parsed);
   if (!rpc.ok) {

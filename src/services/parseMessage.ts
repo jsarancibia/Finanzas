@@ -38,6 +38,30 @@ export function destinoParaRegistro(p: ParsedMovimiento): string {
   return '';
 }
 
+/** Origen del gasto tras «desde …» (sin importar ciclos con parseMessageTraspaso). */
+function mapearOrigenGastoDesdeFrag(frag: string): { banco: string; cuentaProducto: string } | null {
+  const s = frag.trim().replace(/\s+/g, ' ');
+  if (!s) {
+    return null;
+  }
+  if (/\bcuenta\s*rut\b|\brut\s+cuenta\b/i.test(s) || (/\brut\b/i.test(s) && /\bestado\b/i.test(s))) {
+    return { banco: 'Banco Estado', cuentaProducto: 'Cuenta RUT' };
+  }
+  if (/\bmercado\s+pago\b/i.test(s)) {
+    return { banco: 'Mercado Pago', cuentaProducto: 'Disponible' };
+  }
+  if (/\befectivo\b/i.test(s)) {
+    return { banco: 'Efectivo', cuentaProducto: 'Efectivo' };
+  }
+  if (/\bbanco\s+de\s+chile\b/i.test(s)) {
+    return { banco: 'Banco de Chile', cuentaProducto: 'Disponible' };
+  }
+  if (/\bbanco\s+estado\b|\bbancoestado\b/i.test(s)) {
+    return { banco: 'Banco Estado', cuentaProducto: 'Disponible' };
+  }
+  return null;
+}
+
 const LUCA = 1000;
 
 const WORD_TO_INT: Record<string, number> = {
@@ -378,6 +402,39 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
     /^(gasté|gaste)\s+(.+)$/i.exec(t);
   if (gastoColoquial) {
     const rest = gastoColoquial[2].trim();
+
+    const desdeIdx = rest.search(/\s+desde\s+/i);
+    if (desdeIdx > 0) {
+      const headDesde = rest.slice(0, desdeIdx).trim();
+      const afterDesde = rest.slice(desdeIdx).replace(/^\s+desde\s+/i, '').trim();
+      const enDentro = /\s+en\s+/i.exec(afterDesde);
+      const origenFrag = enDentro ? afterDesde.slice(0, enDentro.index).trim() : afterDesde;
+      const tailCat = enDentro
+        ? afterDesde.slice(enDentro.index + enDentro[0].length).trim()
+        : '';
+      const mapped = mapearOrigenGastoDesdeFrag(origenFrag);
+      const extDesde = extractLeadingMonto(headDesde);
+      if (mapped && extDesde && extDesde.monto > 0) {
+        const cat = tailCat ? inferCategoriaGasto(tailCat) : 'otros';
+        const descripcion =
+          tailCat &&
+          (cat === 'otros' || /y\s+|varias/i.test(tailCat) || tailCat.split(/\s+/).length > 1)
+            ? tailCat
+            : '';
+        const base: ParsedMovimiento = {
+          tipo: 'gasto',
+          monto: extDesde.monto,
+          categoria: cat,
+          descripcion,
+          origen: null,
+          destino: null,
+          banco: mapped.banco,
+          cuentaProducto: mapped.cuentaProducto,
+        };
+        return { ...base, destino: destinoParaRegistro(base) };
+      }
+    }
+
     const en = /\s+en\s+(.+)$/i.exec(rest);
     const head = en ? rest.slice(0, en.index).trim() : rest;
     const ext = extractLeadingMonto(head);

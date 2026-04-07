@@ -9,10 +9,25 @@
           "value": "no-store, no-cache, must-revalidate, max-age=0"
         }
       ]
+    },
+    {
+      "source": "/api/chat-history",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, max-age=0"
+        }
+      ]
     }
   ],
   "functions": {
     "api/chat.mjs": {
+      "includeFiles": "{dist/**,config/**}"
+    },
+    "api/chat-history.mjs": {
+      "includeFiles": "{dist/**,config/**}"
+    },
+    "api/chat-clear.mjs": {
       "includeFiles": "{dist/**,config/**}"
     },
     "api/resumen-cuentas.mjs": {

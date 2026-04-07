@@ -1,6 +1,5 @@
 /**
- * Vercel Serverless: POST JSON { "message": "..." }.
- * Requiere `npm run build` para generar `dist/` antes del deploy.
+ * POST JSON { "session_id": "uuid" } — oculta mensajes del chat (no toca finanzas).
  */
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
@@ -16,20 +15,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { handleChatPost } = await import('../dist/routes/handleChatPost.js');
+    const { handleChatClearPost } = await import('../dist/routes/handleChatClearPost.js');
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body ?? {};
-    const message = body.message;
-    if (typeof message !== 'string' || !message.trim()) {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      return res.status(400).json({ error: 'Falta "message" (string)' });
-    }
-
     const sessionId =
-      typeof body.sessionId === 'string' || typeof body.session_id === 'string'
-        ? String(body.sessionId ?? body.session_id).trim()
-        : null;
-
-    const out = await handleChatPost(message.trim(), { sessionId });
+      typeof body.session_id === 'string'
+        ? body.session_id.trim()
+        : typeof body.sessionId === 'string'
+          ? body.sessionId.trim()
+          : null;
+    const out = await handleChatClearPost(sessionId);
     res.setHeader('Access-Control-Allow-Origin', '*');
     return res.status(200).json(out);
   } catch (e) {

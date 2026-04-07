@@ -466,6 +466,31 @@
         );
       }
 
+      .chat-head-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .btn-clear-chat {
+        flex-shrink: 0;
+        font: inherit;
+        font-size: 0.8rem;
+        padding: 0.35rem 0.65rem;
+        border-radius: var(--radius);
+        border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+        background: color-mix(in srgb, var(--surface-2) 40%, transparent);
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .btn-clear-chat:hover {
+        color: var(--text);
+        border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+      }
+
       header h1 {
         margin: 0;
         font-size: 1.2rem;
@@ -708,7 +733,12 @@
       <main class="panel panel--chat">
         <div class="shell">
           <header>
-            <h1>Asistente financiero</h1>
+            <div class="chat-head-row">
+              <h1>Asistente financiero</h1>
+              <button type="button" id="btn-clear-chat" class="btn-clear-chat" title="Borra solo la conversación">
+                Limpiar chat
+              </button>
+            </div>
           </header>
           <div id="log" role="log" aria-live="polite" aria-relevant="additions"></div>
           <form class="composer" id="form" autocomplete="off">
@@ -734,9 +764,79 @@
         const form = document.getElementById("form");
         const input = document.getElementById("input");
         const sendBtn = document.getElementById("send");
+        const btnClearChat = document.getElementById("btn-clear-chat");
         const resumenList = document.getElementById("resumen-list");
         const resumenTotales = document.getElementById("resumen-totales");
         const resumenStatus = document.getElementById("resumen-status");
+
+        const CHAT_SESSION_STORAGE_KEY = "finanzas_chat_session_id";
+
+        function newSessionUuid() {
+          if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+            return crypto.randomUUID();
+          }
+          const b = new Uint8Array(16);
+          if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+            crypto.getRandomValues(b);
+          } else {
+            for (let i = 0; i < 16; i++) b[i] = (Math.random() * 256) | 0;
+          }
+          b[6] = (b[6] & 0x0f) | 0x40;
+          b[8] = (b[8] & 0x3f) | 0x80;
+          const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+          return (
+            h.slice(0, 8) +
+            "-" +
+            h.slice(8, 12) +
+            "-" +
+            h.slice(12, 16) +
+            "-" +
+            h.slice(16, 20) +
+            "-" +
+            h.slice(20, 32)
+          );
+        }
+
+        function getOrCreateSessionId() {
+          try {
+            let id = localStorage.getItem(CHAT_SESSION_STORAGE_KEY);
+            if (id && typeof id === "string") id = id.trim();
+            if (id && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(id)) {
+              return id;
+            }
+            const nu = newSessionUuid();
+            localStorage.setItem(CHAT_SESSION_STORAGE_KEY, nu);
+            return nu;
+          } catch {
+            return newSessionUuid();
+          }
+        }
+
+        async function cargarHistorialDesdeServidor() {
+          const sid = getOrCreateSessionId();
+          try {
+            const res = await fetch(
+              "/api/chat-history?session_id=" + encodeURIComponent(sid),
+              { cache: "no-store" },
+            );
+            const ct = res.headers.get("content-type") || "";
+            const data = ct.includes("application/json") ? await res.json() : null;
+            if (!res.ok) {
+              throw new Error((data && data.error) || "Error " + res.status);
+            }
+            const arr = data && Array.isArray(data.messages) ? data.messages : [];
+            for (const m of arr) {
+              if (!m || (m.role !== "user" && m.role !== "assistant")) continue;
+              const t = typeof m.message === "string" ? m.message : "";
+              if (!t) continue;
+              appendBubble(m.role, t, { warn: false });
+            }
+          } catch {
+            appendSystem(
+              "No se pudo cargar el historial guardado. El chat sigue funcionando.",
+            );
+          }
+        }
 
         function formatMonto(n, moneda) {
           const x = Math.round(Number(n));
@@ -1054,7 +1154,7 @@
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: text }),
+            body: JSON.stringify({ message: text, sessionId: getOrCreateSessionId() }),
           });
 
           const ct = res.headers.get("content-type") || "";
@@ -1126,9 +1226,47 @@
           input.style.height = Math.min(input.scrollHeight, 128) + "px";
         });
 
-        appendSystem("Listo. Escribe un mensaje y pulsa Enviar.");
-        input.focus();
-        void refreshResumen();
+        if (btnClearChat) {
+          btnClearChat.addEventListener("click", async function () {
+            if (
+              !confirm(
+                "¿Quieres limpiar solo el chat visible? No se borran movimientos ni saldos.",
+              )
+            ) {
+              return;
+            }
+            const sid = getOrCreateSessionId();
+            try {
+              const res = await fetch("/api/chat-clear", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ session_id: sid }),
+              });
+              const ct = res.headers.get("content-type") || "";
+              const data = ct.includes("application/json") ? await res.json() : null;
+              if (!res.ok) {
+                throw new Error((data && data.error) || "Error " + res.status);
+              }
+              logEl.replaceChildren();
+              appendSystem("Chat limpiado. Escribe un mensaje para comenzar de nuevo.");
+            } catch (err) {
+              appendSystem(
+                err instanceof Error ? err.message : String(err),
+              );
+            }
+          });
+        }
+
+        async function inicializarChatUI() {
+          await cargarHistorialDesdeServidor();
+          if (logEl.children.length === 0) {
+            appendSystem("Listo. Escribe un mensaje y pulsa Enviar.");
+          }
+          input.focus();
+          void refreshResumen();
+        }
+
+        void inicializarChatUI();
       })();
     </script>
   </body>

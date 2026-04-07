@@ -4,6 +4,7 @@
 
 BEGIN;
 
+DELETE FROM public.chat_messages;
 DELETE FROM public.movimientos;
 DELETE FROM public.cuentas;
 DELETE FROM public.bancos;
