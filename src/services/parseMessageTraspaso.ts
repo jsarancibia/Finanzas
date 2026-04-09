@@ -1,4 +1,10 @@
-import { buscarMontoEnTextoCompleto, destinoParaRegistro, type ParsedMovimiento } from './parseMessage.js';
+import {
+  buscarMontoEnTextoCompleto,
+  destinoParaRegistro,
+  extraerOrigenDisponibleParaAhorro,
+  extractLeadingMonto,
+  type ParsedMovimiento,
+} from './parseMessage.js';
 import { detectBanco, detectProducto } from './parseMessageFlexible.js';
 
 export type ParsedTraspaso = {
@@ -10,7 +16,24 @@ export type ParsedTraspaso = {
 };
 
 /**
- * Interpreta un extremo del traspaso (ej. "cuenta rut", "mercado pago", "Banco Estado cuenta corriente").
+ * Extrae subcuenta de un fragmento eliminando el nombre del banco y preposiciones.
+ * "reservas de mercado pago" → "Reservas"; "la cuenta de mercado pago" → null (genérico).
+ */
+function extraerSubcuentaDeFragmento(frag: string, bancoPattern: RegExp): string | null {
+  const rest = frag
+    .replace(bancoPattern, '')
+    .replace(/\b(de|del|la|el|los|las|en|al|mi|su|a)\b/gi, '')
+    .replace(/[,;.]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!rest || /^cuenta$/i.test(rest) || rest.length < 2) {
+    return null;
+  }
+  return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
+/**
+ * Interpreta un extremo del traspaso (ej. "cuenta rut", "mercado pago", "reservas de mercado pago").
  */
 export function mapExtremoTraspaso(frag: string): { banco: string; cuenta: string } | null {
   const s = frag.trim().replace(/\s+/g, ' ');
@@ -20,18 +43,20 @@ export function mapExtremoTraspaso(frag: string): { banco: string; cuenta: strin
   if (/\bcuenta\s*rut\b|\brut\s+cuenta\b/i.test(s) || (/\brut\b/i.test(s) && /\bestado\b/i.test(s))) {
     return { banco: 'Banco Estado', cuenta: 'Cuenta RUT' };
   }
+  const prod = detectProducto(s);
   if (/\bmercado\s+libre\b/i.test(s)) {
-    const prod = detectProducto(s);
-    return { banco: 'Mercado Pago', cuenta: prod || 'Disponible' };
+    if (prod) return { banco: 'Mercado Pago', cuenta: prod };
+    const sub = extraerSubcuentaDeFragmento(s, /\bmercado\s+libre\b/i);
+    return { banco: 'Mercado Pago', cuenta: sub || 'Disponible' };
   }
   if (/\bmercado\s+pago\b/i.test(s)) {
-    const prod = detectProducto(s);
-    return { banco: 'Mercado Pago', cuenta: prod || 'Disponible' };
+    if (prod) return { banco: 'Mercado Pago', cuenta: prod };
+    const sub = extraerSubcuentaDeFragmento(s, /\bmercado\s+pago\b/i);
+    return { banco: 'Mercado Pago', cuenta: sub || 'Disponible' };
   }
   const b = detectBanco(s);
-  const c = detectProducto(s);
-  if (b && c) {
-    return { banco: b, cuenta: c };
+  if (b && prod) {
+    return { banco: b, cuenta: prod };
   }
   if (b) {
     return { banco: b, cuenta: 'Disponible' };
@@ -105,7 +130,7 @@ export function textoPedirMontoTraspasoSiAplica(text: string): string | null {
 
 /**
  * Traspaso entre cuentas: requiere monto y patrón «de X a Y» / «desde X a Y».
- * También acepta frases tipo «50000 de cuenta rut a mercado pago».
+ * También acepta «saqué X de A, y lo pasé a B» y «50000 de cuenta rut a mercado pago».
  */
 export function parseTraspaso(text: string): ParsedTraspaso | null {
   const raw = text.trim().normalize('NFC');
@@ -116,6 +141,51 @@ export function parseTraspaso(text: string): ParsedTraspaso | null {
   if (monto == null || monto <= 0) {
     return null;
   }
+
+  /**
+   * «del dinero de mercado pago disponible, pasa 30000 a cuenta rut» (traspaso entre disponibles).
+   * No usar si el destino es ahorro/reservas: eso va por `aplicar_movimiento` tipo ahorro + origen.
+   */
+  const pareceDestinoAhorro = /\bahorro\b/i.test(raw) || /\breservas\b/i.test(raw);
+  const oo = extraerOrigenDisponibleParaAhorro(raw);
+  if (oo && !pareceDestinoAhorro && !/\bdisponible\s+sin\s+cuenta\b/i.test(raw)) {
+    const mi = /\bpas(?:a|ar|é|e)\b/i.exec(raw);
+    if (mi) {
+      const after = raw.slice(mi.index + mi[0].length).trim();
+      const ext = extractLeadingMonto(after);
+      if (ext && ext.monto > 0) {
+        const destRaw = ext.rest.replace(/^\s*,?\s*a\s+/i, '').trim();
+        if (destRaw) {
+          const destino = mapExtremoTraspaso(destRaw);
+          if (destino) {
+            const oNorm = `${oo.banco}\u00b7${oo.cuentaProducto}`.toLowerCase().replace(/\s+/g, '');
+            const dNorm = `${destino.banco}\u00b7${destino.cuenta}`.toLowerCase().replace(/\s+/g, '');
+            if (oNorm !== dNorm) {
+              return {
+                monto: ext.monto,
+                origenBanco: oo.banco,
+                origenCuenta: oo.cuentaProducto,
+                destinoBanco: destino.banco,
+                destinoCuenta: destino.cuenta,
+              };
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // «saqué/saque/retiré X de A, y lo pasé/mandé a B»
+  const mSaque =
+    /(?:saqu[eé]|saque|retir[eé]|retire)\s+[\d.,]+\s*(?:k|mil|lucas?)?\s+(?:de|desde)\s+(.+?),?\s+y\s+(?:lo\s+)?(?:pas[eéoa]r?|mand[eéoa]r?|transfer[ií]r?|mov[ií]|llev[eé]|deposit[eéoa]r?)\s+(?:a|al|en)\s+(.+)$/i.exec(raw);
+  if (mSaque) {
+    const origen = mapExtremoTraspaso(mSaque[1].trim());
+    const destino = mapExtremoTraspaso(mSaque[2].trim());
+    if (origen && destino && !(origen.banco === destino.banco && origen.cuenta === destino.cuenta)) {
+      return { monto, origenBanco: origen.banco, origenCuenta: origen.cuenta, destinoBanco: destino.banco, destinoCuenta: destino.cuenta };
+    }
+  }
+
   const m = /(?:de|desde)\s+(.+?)\s+(?:a|al)\s+(.+)$/i.exec(raw);
   if (!m) {
     return null;

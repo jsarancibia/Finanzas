@@ -21,6 +21,7 @@ Coloquial CLP: lucas/palos = miles (80 lucas→80000); Nk→N×1000; cien mil→
 Un movimiento por mensaje. Varios montos sin total claro → tipo null, monto null.
 Traspaso entre cuentas con patrón «de … a …» (ej. Cuenta RUT a Mercado Pago) → tipo null y monto null (otro módulo lo resuelve).
 Asignación «del disponible sin cuenta … en/a cuenta X» con monto → tipo null y monto null (otro módulo lo resuelve).
+Frases «del dinero a repartir», «pendiente de repartir» o «del pendiente» con monto y destino → tipo null y monto null (reparto desde colchón, no ingreso nuevo).
 No calcules ni menciones saldos. No des consejos. No inventes cifras.`;
 
 /** Límite de caracteres del usuario al modelo (costo y foco). */

@@ -5,6 +5,7 @@ import { parseAsignarDesdeDisponibleSinCuenta } from './parseMessageDisponibleSi
 import {
   buscarMontoEnTextoCompleto,
   destinoParaRegistro,
+  extraerOrigenDisponibleParaAhorro,
   type MovimientoTipo,
   type ParsedMovimiento,
 } from './parseMessage.js';
@@ -12,7 +13,10 @@ import {
 const BANK_ALIASES: { pattern: RegExp; nombre: string }[] = [
   { pattern: /\bmercado\s+pago\b/i, nombre: 'Mercado Pago' },
   { pattern: /\bbanco\s+de\s+chile\b/i, nombre: 'Banco de Chile' },
-  { pattern: /\bbanco\s+estado\b|\bbancoestado\b/i, nombre: 'Banco Estado' },
+  {
+    pattern: /\bbanco\s+estado\b|\bbancoestado\b|\bbando\s+estado\b|\bbandestado\b/i,
+    nombre: 'Banco Estado',
+  },
   { pattern: /\bbanco\s+santander\b|\bsantander\b/i, nombre: 'Banco Santander' },
   { pattern: /\bscotiabank\b|\bscotia\b/i, nombre: 'Scotiabank' },
   { pattern: /\bbi\s+banco\b|\bbci\b|\bci\s+mazu\b/i, nombre: 'BCI' },
@@ -71,11 +75,19 @@ function extraerSubcuentaTrasBanco(raw: string, banco: string | null): string | 
       continue;
     }
     const tail = raw.slice(last.index + last[0].length).trim();
-    const sub = /^en\s+(.+)$/i.exec(tail);
-    if (sub) {
-      const label = sub[1].trim().replace(/\s+/g, ' ');
+    const subAfter = /^en\s+(.+)$/i.exec(tail);
+    if (subAfter) {
+      const label = subAfter[1].trim().replace(/\s+/g, ' ');
       if (label.length > 0) {
         return label.replace(/^seccion\b/i, 'Sección');
+      }
+    }
+    const before = raw.slice(0, last.index).trim();
+    const subBefore = /\ben\s+(\S+(?:\s+\S+)?)\s*$/i.exec(before);
+    if (subBefore) {
+      const label = subBefore[1].trim().replace(/\s+/g, ' ');
+      if (label.length > 0 && !/^\d/.test(label) && !/^ahorro$/i.test(label)) {
+        return label.charAt(0).toUpperCase() + label.slice(1);
       }
     }
   }
@@ -84,10 +96,23 @@ function extraerSubcuentaTrasBanco(raw: string, banco: string | null): string | 
 
 function detectTipoFlex(lower: string): MovimientoTipo | null {
   const senalDineroExistente = tieneSenalOrigenDineroExistente(lower);
-  if (/\bpasé\b|\bpase\b/.test(lower) && /\bahorro\b/.test(lower)) {
+
+  if (/\ben\s+ahorro\b/.test(lower) && /\d/.test(lower)) {
+    return 'ahorro';
+  }
+  if (/\btengo\b/.test(lower) && /\bahorro\b/.test(lower) && /\d/.test(lower)) {
+    return 'ahorro';
+  }
+  if (/\bpas(?:é|e|a|ar)\b/.test(lower) && /\bahorro\b/.test(lower)) {
+    return 'ahorro';
+  }
+  if (/\bpas(?:é|e|a|ar)\b/.test(lower) && /\breservas\b/.test(lower) && /\bmercado\s+pago\b/.test(lower)) {
     return 'ahorro';
   }
   if (/\btengo\s+ahorrado\b/.test(lower)) {
+    return 'ahorro';
+  }
+  if (/\btengo\b.+\bahorro\s+de\b/.test(lower)) {
     return 'ahorro';
   }
   if (/\btengo\s+un\s+ahorro\s+de\b|\btengo\s+ahorro\s+de\b/.test(lower)) {
@@ -137,7 +162,9 @@ function detectTipoFlex(lower: string): MovimientoTipo | null {
     /\btengo\b/.test(lower) &&
     /\d/.test(lower) &&
     !/\btengo\s+(?:un\s+)?ahorro\b/.test(lower) &&
-    !/\btengo\s+ahorrado\b/.test(lower)
+    !/\btengo\s+ahorrado\b/.test(lower) &&
+    !/\bahorro\b/.test(lower) &&
+    !/\ben\s+ahorro\b/.test(lower)
   ) {
     return 'ingreso';
   }
@@ -159,7 +186,7 @@ function detectTipoFlex(lower: string): MovimientoTipo | null {
   if (/\bgasto\b/.test(lower) && /\d/.test(lower)) {
     return 'gasto';
   }
-  if (/\bsaqué\b|\bsaque\b/.test(lower)) {
+  if (/\bsaqué\b|\bsaque\b/.test(lower) && !/\by\s+(?:lo\s+)?pas[eéoa]\b/i.test(lower)) {
     return 'gasto';
   }
   const desdeJson = inferirTipoPorTerminosChilenos(lower);
@@ -222,22 +249,37 @@ export function enriquecerBancoYProducto(raw: string, p: ParsedMovimiento): Pars
     banco = banco ?? 'Banco Estado';
   }
 
-  if (
-    (p.banco?.trim() || null) === banco &&
-    (p.cuentaProducto?.trim() || null) === cuentaProducto
-  ) {
-    return p;
-  }
-
   const next: ParsedMovimiento = {
     ...p,
     banco: banco || null,
     cuentaProducto: cuentaProducto || null,
   };
-  return {
+  let out: ParsedMovimiento = {
     ...next,
     destino: destinoParaRegistro(next),
   };
+
+  if (
+    (p.banco?.trim() || null) === banco &&
+    (p.cuentaProducto?.trim() || null) === cuentaProducto &&
+    p.destino === out.destino
+  ) {
+    out = p;
+  }
+
+  if (out.tipo === 'ahorro') {
+    const oo = extraerOrigenDisponibleParaAhorro(t);
+    if (oo) {
+      const oStr = destinoParaRegistro({
+        ...out,
+        banco: oo.banco,
+        cuentaProducto: oo.cuentaProducto,
+      });
+      out = { ...out, origen: oStr };
+    }
+  }
+
+  return out;
 }
 
 /**
@@ -306,12 +348,27 @@ export function parseMessageFlexible(text: string): ParsedMovimiento | null {
   let destinoHint: string | null = null;
 
   if (tipo === 'gasto') {
-    const tail = tailTrasEn(raw);
+    let tail = tailTrasEn(raw);
+    if (tail) {
+      tail = tail
+        .replace(/,?\s+del\s+dinero\s+de\s+.+$/i, '')
+        .replace(/,?\s+de\s+la\s+(?:cuenta|plata)\s+de\s+.+$/i, '')
+        .replace(/,?\s+(?:con|de)\s+(?:la\s+)?(?:plata|dinero)\s+de\s+.+$/i, '')
+        .trim();
+      for (const { pattern } of BANK_ALIASES) {
+        tail = tail
+          .replace(new RegExp(`\\s+(?:de|del|en)\\s+(?:la\\s+)?(?:cuenta\\s+(?:de\\s+)?)?${pattern.source}.*$`, 'i'), '')
+          .trim();
+      }
+    }
     categoria = tail ? inferCategoriaGasto(tail) : 'otros';
     descripcion =
       tail && (categoria === 'otros' || tail.split(/\s+/).length > 1 || /y\s+|varias/i.test(tail))
         ? tail
         : '';
+    if (!cuentaProducto && banco) {
+      cuentaProducto = 'Disponible';
+    }
   } else if (tipo === 'ahorro' && /\binvertí\b|\binverti\b/i.test(raw)) {
     const det = tailTrasEn(raw).replace(/^(de|del|por|para|en)\s+/i, '').trim();
     descripcion = det ? `inversión: ${det}` : 'inversión';

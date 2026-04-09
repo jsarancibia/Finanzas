@@ -6,6 +6,7 @@ import {
   MAX_ULTIMOS_MENSAJES,
   obtenerResumenFinancieroOpcional,
   registrarMensajeContexto,
+  withContextoUsuario,
 } from './services/memoriaContexto.js';
 import { testSupabaseConnectivity } from './services/supabaseClient.js';
 import { textoConsejoSiAplica } from './services/consejoLocal.js';
@@ -24,42 +25,48 @@ async function main(): Promise<void> {
   const mensaje = process.argv[2];
 
   if (mensaje) {
-    const trim = mensaje.trim().normalize('NFC');
-    const notaDistribucion = textoNotaDistribucionDisponibleSiAplica(trim);
-    const pedirMontoTraspaso = textoPedirMontoTraspasoSiAplica(trim);
-    const pedirMontoAsignacionSinCuenta = textoPedirMontoAsignacionSinCuentaSiAplica(trim);
-    const consejo = textoConsejoSiAplica(trim);
-    const pedirMonto = textoPedirMontoGastoSiAplica(trim);
-    const correccion = await tryEjecutarCorreccion(trim);
-    let resultado: ProcessResult;
-    if (correccion) {
-      resultado = correccion;
-    } else if (notaDistribucion) {
-      resultado = { ok: true, kind: 'consejo', texto: notaDistribucion };
-    } else if (pedirMontoTraspaso) {
-      resultado = { ok: true, kind: 'aclaracion_monto', texto: pedirMontoTraspaso };
-    } else if (pedirMontoAsignacionSinCuenta) {
-      resultado = { ok: true, kind: 'aclaracion_monto', texto: pedirMontoAsignacionSinCuenta };
-    } else if (consejo) {
-      resultado = { ok: true, kind: 'consejo', texto: consejo };
-    } else if (pedirMonto) {
-      resultado = { ok: true, kind: 'aclaracion_monto', texto: pedirMonto };
-    } else {
-      resultado = await processMessage(trim, getProcessMessageLlmOptions());
-    }
-    const textoAsistente = await construirRespuestaAsistente(resultado, reglas);
-    console.log(textoAsistente);
-    if (resultado.ok) {
-      registrarMensajeContexto('user', mensaje);
-      registrarMensajeContexto(
-        'assistant',
-        textoAsistente.replace(/\s+/g, ' ').trim(),
-      );
-    }
-    console.log(JSON.stringify(resultado));
-    if (!resultado.ok) {
-      process.exitCode = 1;
-    }
+    const cliUid = process.env.FINANZAS_AUTH_USER_ID?.trim() ?? '';
+    await withContextoUsuario(cliUid || null, async () => {
+      const trim = mensaje.trim().normalize('NFC');
+      const notaDistribucion = textoNotaDistribucionDisponibleSiAplica(trim);
+      const pedirMontoTraspaso = textoPedirMontoTraspasoSiAplica(trim);
+      const pedirMontoAsignacionSinCuenta = textoPedirMontoAsignacionSinCuentaSiAplica(trim);
+      const consejo = textoConsejoSiAplica(trim);
+      const pedirMonto = textoPedirMontoGastoSiAplica(trim);
+      const correccion = await tryEjecutarCorreccion(trim);
+      let resultado: ProcessResult;
+      if (correccion) {
+        resultado = correccion;
+      } else if (notaDistribucion) {
+        resultado = { ok: true, kind: 'consejo', texto: notaDistribucion };
+      } else if (pedirMontoTraspaso) {
+        resultado = { ok: true, kind: 'aclaracion_monto', texto: pedirMontoTraspaso };
+      } else if (pedirMontoAsignacionSinCuenta) {
+        resultado = { ok: true, kind: 'aclaracion_monto', texto: pedirMontoAsignacionSinCuenta };
+      } else if (consejo) {
+        resultado = { ok: true, kind: 'consejo', texto: consejo };
+      } else if (pedirMonto) {
+        resultado = { ok: true, kind: 'aclaracion_monto', texto: pedirMonto };
+      } else {
+        resultado = await processMessage(trim, {
+          authUserId: cliUid,
+          ...getProcessMessageLlmOptions(),
+        });
+      }
+      const textoAsistente = await construirRespuestaAsistente(resultado, reglas);
+      console.log(textoAsistente);
+      if (resultado.ok) {
+        registrarMensajeContexto('user', mensaje);
+        registrarMensajeContexto(
+          'assistant',
+          textoAsistente.replace(/\s+/g, ' ').trim(),
+        );
+      }
+      console.log(JSON.stringify(resultado));
+      if (!resultado.ok) {
+        process.exitCode = 1;
+      }
+    });
     return;
   }
 

@@ -1,11 +1,13 @@
 /**
  * GET JSON: resumen de cuentas / ahorros por destino + saldos globales (solo lectura Supabase).
  */
+import { requireAuth } from '../lib/authGuard.mjs';
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     return res.status(204).end();
   }
 
@@ -14,9 +16,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const user = await requireAuth(req, res);
+  if (!user) {
+    return;
+  }
+
   try {
     const { handleResumenCuentasGet } = await import('../dist/routes/handleResumenCuentasGet.js');
-    const out = await handleResumenCuentasGet();
+    const out = await handleResumenCuentasGet(user.id);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     res.setHeader('Pragma', 'no-cache');

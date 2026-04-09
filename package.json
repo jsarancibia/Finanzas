@@ -13,7 +13,11 @@
     "dev": "tsx watch src/index.ts",
     "dev:web": "npm run build && node scripts/dev-web.mjs",
     "typecheck": "tsc --noEmit",
+    "check:parsers": "tsx scripts/prelaunch-check.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "db:apply": "node scripts/apply-migrations.mjs",
+    "db:reconciliar": "node scripts/reconciliar-cuentas.mjs",
     "db:reset-datos": "node scripts/reset-datos.mjs --yes"
   },
   "dependencies": {
@@ -22,6 +26,7 @@
     "postgres": "^3.4.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.50.1",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

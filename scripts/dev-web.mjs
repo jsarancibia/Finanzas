@@ -16,8 +16,16 @@ const distChat = path.resolve(root, 'dist', 'routes', 'handleChatPost.js');
 const distChatHistory = path.resolve(root, 'dist', 'routes', 'handleChatHistoryGet.js');
 const distChatClear = path.resolve(root, 'dist', 'routes', 'handleChatClearPost.js');
 const distResumen = path.resolve(root, 'dist', 'routes', 'handleResumenCuentasGet.js');
+const distVerify = path.resolve(root, 'dist', 'services', 'verifySessionToken.js');
 
-const API_WITH_OPTIONS = ['/api/chat', '/api/resumen-cuentas', '/api/chat-history', '/api/chat-clear'];
+const API_WITH_OPTIONS = [
+  '/api/chat',
+  '/api/resumen-cuentas',
+  '/api/chat-history',
+  '/api/chat-clear',
+  '/api/auth-config',
+  '/api/auth-session',
+];
 const PREFERRED_PORT = Number(process.env.PORT) || 3000;
 
 const MIME = {
@@ -27,7 +35,10 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.ico': 'image/x-icon',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
 };
 
 function safePublicPath(urlPath) {
@@ -47,6 +58,26 @@ async function readBody(req) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
+async function requireAuthDev(req, res) {
+  if (!fs.existsSync(distVerify)) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: 'Falta dist/. Ejecuta antes: npm run build' }));
+    return null;
+  }
+  const { verifyBearerToken } = await import(pathToFileURL(distVerify).href);
+  const authz = req.headers.authorization;
+  const result = await verifyBearerToken(typeof authz === 'string' ? authz : undefined);
+  if (!result.ok) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.writeHead(result.status, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ error: result.message }));
+    return null;
+  }
+  return result.user;
+}
+
 const server = http.createServer(async (req, res) => {
   const host =
     req.headers.host || `localhost:${req.socket?.localPort ?? PREFERRED_PORT}`;
@@ -59,13 +90,44 @@ const server = http.createServer(async (req, res) => {
         ? 'POST, OPTIONS'
         : 'GET, OPTIONS';
     res.setHeader('Access-Control-Allow-Methods', methods);
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.writeHead(204).end();
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/auth-config') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store');
+    const supabaseUrl = process.env.SUPABASE_URL?.trim();
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY?.trim();
+    if (!supabaseUrl || !supabaseAnonKey) {
+      res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: 'Auth no configurado en el servidor.' }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ supabaseUrl, supabaseAnonKey }));
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/auth-session') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const user = await requireAuthDev(req, res);
+    if (!user) {
+      return;
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ ok: true, email: user.email, userId: user.id }));
     return;
   }
 
   if (req.method === 'GET' && url.pathname === '/api/resumen-cuentas') {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    const user = await requireAuthDev(req, res);
+    if (!user) {
+      return;
+    }
     try {
       if (!fs.existsSync(distResumen)) {
         res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -73,7 +135,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const { handleResumenCuentasGet } = await import(pathToFileURL(distResumen).href);
-      const out = await handleResumenCuentasGet();
+      const out = await handleResumenCuentasGet(user.id);
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
@@ -90,6 +152,10 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && url.pathname === '/api/chat') {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    const user = await requireAuthDev(req, res);
+    if (!user) {
+      return;
+    }
     try {
       if (!fs.existsSync(distChat)) {
         res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -121,7 +187,11 @@ const server = http.createServer(async (req, res) => {
         typeof body.sessionId === 'string' || typeof body.session_id === 'string'
           ? String(body.sessionId ?? body.session_id).trim()
           : null;
-      const out = await handleChatPost(message.trim(), { sessionId });
+      const out = await handleChatPost(message.trim(), {
+        sessionId,
+        authUserId: user.id,
+        authUserEmail: user.email ?? null,
+      });
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(out));
     } catch (e) {
@@ -134,6 +204,10 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/api/chat-history') {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    const user = await requireAuthDev(req, res);
+    if (!user) {
+      return;
+    }
     try {
       if (!fs.existsSync(distChatHistory)) {
         res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -142,7 +216,7 @@ const server = http.createServer(async (req, res) => {
       }
       const { handleChatHistoryGet } = await import(pathToFileURL(distChatHistory).href);
       const sessionId = url.searchParams.get('session_id');
-      const out = await handleChatHistoryGet(sessionId);
+      const out = await handleChatHistoryGet(sessionId, user.id);
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
@@ -159,6 +233,10 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && url.pathname === '/api/chat-clear') {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    const user = await requireAuthDev(req, res);
+    if (!user) {
+      return;
+    }
     try {
       if (!fs.existsSync(distChatClear)) {
         res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -181,7 +259,7 @@ const server = http.createServer(async (req, res) => {
           : typeof body.sessionId === 'string'
             ? body.sessionId.trim()
             : null;
-      const out = await handleChatClearPost(sessionId);
+      const out = await handleChatClearPost(sessionId, user.id);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(out));
     } catch (e) {

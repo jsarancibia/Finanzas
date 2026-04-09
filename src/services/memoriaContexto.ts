@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 import { loadReglas } from '../config/loadReglas.js';
 import { fetchAllBalanceRows } from './fetchBalancesRows.js';
 
@@ -19,13 +21,54 @@ export interface MensajeContexto {
 }
 
 /**
- * Buffer solo en memoria del proceso. En despliegues serverless (p. ej. Vercel) se pierde entre
- * invocaciones; más adelante conviene persistir contexto en BD o no depender de este buffer.
- * Por ahora se mantiene así (arquitectura: memoria ligera local).
+ * Alcance por usuario (auth) para no mezclar buffers si hubiera concurrencia en el mismo proceso.
+ * CLI / sin usuario usa la clave `cli`.
  */
-const buffer: MensajeContexto[] = [];
+const contextoScopeStorage = new AsyncLocalStorage<string>();
+
+const buffers = new Map<string, MensajeContexto[]>();
+
+function scopeKey(): string {
+  return contextoScopeStorage.getStore() ?? 'cli';
+}
+
+const UUID_CTX = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+
+/** UUID del usuario en el contexto async actual (chat web con sesión). */
+export function getAuthUserIdDesdeContexto(): string | null {
+  const k = scopeKey();
+  if (!k || k === 'anon' || k === 'cli') {
+    return null;
+  }
+  return UUID_CTX.test(k) ? k : null;
+}
+
+function getBuffer(): MensajeContexto[] {
+  const k = scopeKey();
+  let b = buffers.get(k);
+  if (!b) {
+    b = [];
+    buffers.set(k, b);
+  }
+  return b;
+}
+
+/**
+ * Ejecuta el manejo del turno de chat con memoria aislada por usuario autenticado (o `anon`).
+ */
+export async function withContextoUsuario<T>(
+  authUserId: string | null | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const key =
+    authUserId && typeof authUserId === 'string' && authUserId.trim()
+      ? authUserId.trim()
+      : 'anon';
+  return contextoScopeStorage.run(key, fn);
+}
 
 export function registrarMensajeContexto(rol: RolContexto, texto: string): void {
+  const buffer = getBuffer();
   const t = texto.trim();
   if (!t) {
     return;
@@ -38,17 +81,18 @@ export function registrarMensajeContexto(rol: RolContexto, texto: string): void 
 
 /** Últimos mensajes en orden cronológico (los más antiguos primero). */
 export function obtenerUltimosMensajesParaContexto(): MensajeContexto[] {
-  return [...buffer];
+  return [...getBuffer()];
 }
 
 export function limpiarContextoMensajes(): void {
-  buffer.length = 0;
+  buffers.delete(scopeKey());
 }
 
 /**
  * Texto mínimo para acompañar al último mensaje hacia el modelo (sin historial completo).
  */
 export function contextoCompactoParaModelo(): string {
+  const buffer = getBuffer();
   if (buffer.length === 0) {
     return '';
   }
@@ -62,7 +106,11 @@ export async function obtenerSaldosBalancesDesdeBd(): Promise<{
   saldo_disponible_sin_cuenta: number;
 } | null> {
   try {
-    const data = await fetchAllBalanceRows();
+    const uid = getAuthUserIdDesdeContexto();
+    if (!uid) {
+      return null;
+    }
+    const data = await fetchAllBalanceRows(uid);
     if (!data.length) {
       return null;
     }

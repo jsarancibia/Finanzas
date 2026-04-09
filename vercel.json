@@ -22,16 +22,19 @@
   ],
   "functions": {
     "api/chat.mjs": {
-      "includeFiles": "{dist/**,config/**}"
+      "includeFiles": "{dist/**,config/**,lib/**}"
     },
     "api/chat-history.mjs": {
-      "includeFiles": "{dist/**,config/**}"
+      "includeFiles": "{dist/**,config/**,lib/**}"
     },
     "api/chat-clear.mjs": {
-      "includeFiles": "{dist/**,config/**}"
+      "includeFiles": "{dist/**,config/**,lib/**}"
     },
     "api/resumen-cuentas.mjs": {
-      "includeFiles": "{dist/**,config/**}"
+      "includeFiles": "{dist/**,config/**,lib/**}"
+    },
+    "api/auth-session.mjs": {
+      "includeFiles": "{dist/**,config/**,lib/**}"
     }
   }
 }

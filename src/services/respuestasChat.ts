@@ -60,6 +60,15 @@ export async function respuestaErrorCorta(
   if (resultado.error === 'ahorro_insuficiente_para_revertir') {
     return 'No se puede deshacer ese ahorro: el saldo ahorrado en la base es menor que el monto del movimiento.';
   }
+  if (resultado.error === 'origen_disponible_no_encontrado') {
+    return 'No encontré la cuenta disponible de origen (revisa el nombre o crea primero esa cuenta con saldo).';
+  }
+  if (resultado.error === 'saldo_insuficiente_cuenta_origen') {
+    return 'En la cuenta disponible de origen no alcanza ese monto para pasar a ahorro.';
+  }
+  if (resultado.error === 'origen_igual_destino') {
+    return 'Origen y destino no pueden ser la misma cuenta para este movimiento.';
+  }
   if (resultado.error === 'saldo_insuficiente') {
     const p = !resultado.ok && 'parsed' in resultado ? resultado.parsed : undefined;
     if (p && (p.tipo === 'ahorro' || p.tipo === 'gasto')) {
@@ -120,8 +129,10 @@ export async function construirRespuestaAsistente(
     const extra = parsed.descripcion ? ` (${parsed.descripcion})` : '';
     cuerpo = `${prefijo}Ingreso registrado: ${m}${extra}`;
   } else if (parsed.tipo === 'gasto') {
-    const cat = parsed.categoria ? ` (${parsed.categoria})` : '';
-    cuerpo = `${prefijo}Gasto registrado: ${m}${cat}`;
+    const label = (parsed.categoria && parsed.categoria !== 'otros')
+      ? parsed.categoria
+      : (parsed.descripcion || parsed.categoria || 'otros');
+    cuerpo = `${prefijo}Gasto registrado: ${m} (${label})`;
   } else {
     const dest = parsed.destino ? ` (${parsed.destino})` : '';
     cuerpo = `${prefijo}Ahorro registrado: ${m}${dest}`;

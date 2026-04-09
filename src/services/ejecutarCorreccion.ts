@@ -1,7 +1,7 @@
 import { loadCorrecciones } from '../config/loadCorrecciones.js';
 import { loadReglas } from '../config/loadReglas.js';
 import { formatoMontoAsistente } from './formatoMoneda.js';
-import { obtenerSaldosBalancesDesdeBd } from './memoriaContexto.js';
+import { getAuthUserIdDesdeContexto, obtenerSaldosBalancesDesdeBd } from './memoriaContexto.js';
 import { parseIntencionCorreccion } from './parseCorrecciones.js';
 import type { ProcessCorreccionOk, ProcessResult } from './processMessage.js';
 import { getSupabaseService } from './supabaseClient.js';
@@ -23,11 +23,17 @@ export async function tryEjecutarCorreccion(text: string): Promise<ProcessResult
     return null;
   }
 
+  const uid = getAuthUserIdDesdeContexto();
+  if (!uid) {
+    return null;
+  }
+
   const reglas = loadReglas();
   const prefijo = reglas.respuestas.confirmaciones ? '✔ ' : '';
 
   if (intent.accion === 'revertir') {
     const { data, error } = await getSupabaseService().rpc('revertir_ultimo_movimiento', {
+      p_auth_user_id: uid,
       p_monto_filtro: intent.montoFiltro,
     });
 
@@ -54,6 +60,7 @@ export async function tryEjecutarCorreccion(text: string): Promise<ProcessResult
   }
 
   const { data, error } = await getSupabaseService().rpc('corregir_monto_ultimo_movimiento', {
+    p_auth_user_id: uid,
     p_monto_anterior: intent.montoAnterior,
     p_monto_nuevo: intent.montoNuevo,
   });

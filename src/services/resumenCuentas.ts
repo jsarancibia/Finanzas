@@ -226,27 +226,33 @@ function construirSeccionAhorro(
   return list.sort((a, b) => b.monto - a.monto);
 }
 
-export async function obtenerResumenDashboard(reglas: Reglas): Promise<ResumenDashboard> {
+export async function obtenerResumenDashboard(
+  reglas: Reglas,
+  authUserId: string,
+): Promise<ResumenDashboard> {
   const supabase = getSupabaseService();
 
   const [cuentasRes, movAhorroRes, gastosRes, balRows] = await Promise.all([
     supabase
       .from('cuentas')
       .select('nombre, tipo, saldo, banco_id, bancos(nombre)')
+      .eq('auth_user_id', authUserId)
       .order('saldo', { ascending: false }),
     supabase
       .from('movimientos')
       .select('monto, destino, cuenta_id, cuentas(nombre, banco_id, bancos(nombre))')
+      .eq('auth_user_id', authUserId)
       .eq('tipo', 'ahorro')
       .order('fecha', { ascending: false })
       .limit(MAX_MOV_AHORRO_AGREGAR),
     supabase
       .from('movimientos')
       .select('monto, categoria, descripcion, fecha')
+      .eq('auth_user_id', authUserId)
       .eq('tipo', 'gasto')
       .order('fecha', { ascending: false })
       .limit(MAX_GASTOS_AGREGAR),
-    fetchAllBalanceRows(),
+    fetchAllBalanceRows(authUserId),
   ]);
 
   if (cuentasRes.error) {

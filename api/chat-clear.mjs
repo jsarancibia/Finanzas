@@ -1,17 +1,24 @@
 /**
  * POST JSON { "session_id": "uuid" } — oculta mensajes del chat (no toca finanzas).
  */
+import { requireAuth } from '../lib/authGuard.mjs';
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     return res.status(204).end();
   }
 
   if (req.method !== 'POST') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const user = await requireAuth(req, res);
+  if (!user) {
+    return;
   }
 
   try {
@@ -23,7 +30,7 @@ export default async function handler(req, res) {
         : typeof body.sessionId === 'string'
           ? body.sessionId.trim()
           : null;
-    const out = await handleChatClearPost(sessionId);
+    const out = await handleChatClearPost(sessionId, user.id);
     res.setHeader('Access-Control-Allow-Origin', '*');
     return res.status(200).json(out);
   } catch (e) {

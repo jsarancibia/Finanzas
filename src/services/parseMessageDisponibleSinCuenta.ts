@@ -1,6 +1,7 @@
 import {
   buscarMontoEnTextoCompleto,
   extractLeadingMonto,
+  extraerOrigenDisponibleParaAhorro,
 } from './parseMessage.js';
 import { tieneSenalOrigenDineroExistente } from './contextoNoEsIngresoNuevo.js';
 import { mapExtremoTraspaso } from './parseMessageTraspaso.js';
@@ -53,6 +54,9 @@ function tieneVerboAsignacion(t: string): boolean {
   if (/\btengo\b/.test(lower) && tieneSenalOrigenDineroExistente(t)) {
     return true;
   }
+  if (/\best[aá]\b/.test(lower) && tieneSenalOrigenDineroExistente(t)) {
+    return true;
+  }
   return false;
 }
 
@@ -80,6 +84,10 @@ function extraerDestinoAsignacion(t: string): string | null {
     if (m) {
       const frag = limpiarColaOrigenEnDestino(m[1].trim().replace(/[.!?]+$/u, ''));
       if (frag.length > 0) {
+        // «dinero a repartir» / «… a asignar»: la primera « a » no es destino de cuenta.
+        if (re.source.startsWith('\\s+a\\s+') && /^(repartir|asignar)\b/i.test(frag)) {
+          continue;
+        }
         return frag;
       }
     }
@@ -311,6 +319,23 @@ function parseDejarDisponibleEnCuenta(raw: string): ParsedAsignacionSinCuenta | 
 export function parseAsignarDesdeDisponibleSinCuenta(text: string): ParsedAsignacionSinCuenta | null {
   const raw = text.trim().normalize('NFC');
   if (!raw) {
+    return null;
+  }
+
+  /**
+   * Origen explícito en una cuenta «disponible» (ej. mercado pago disponible): no es el colchón
+   * «sin cuenta». Eso lo resuelve ahorro con origen o traspaso (pasa … a …).
+   * Si el usuario nombra el pool «disponible sin cuenta», no aplicar esta exclusión.
+   */
+  if (!mencionaDisponibleSinCuentaPool(raw) && extraerOrigenDisponibleParaAhorro(raw) != null) {
+    return null;
+  }
+
+  if (/\ben\s+ahorro\b/i.test(raw) || /\bahorro\s+de\b/i.test(raw)) {
+    return null;
+  }
+
+  if (/\b(?:a|al)\s+(?:un\s+)?ahorro\b/i.test(raw)) {
     return null;
   }
 

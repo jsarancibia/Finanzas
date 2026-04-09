@@ -27,11 +27,14 @@ export type CuentaDisponibleSaldo = {
 };
 
 /** Cuentas tipo `disponible` con saldo > 0 (para decidir si hay que pedir origen del gasto). */
-export async function listarDisponiblesConSaldoPositivo(): Promise<CuentaDisponibleSaldo[]> {
+export async function listarDisponiblesConSaldoPositivo(
+  authUserId: string,
+): Promise<CuentaDisponibleSaldo[]> {
   const supabase = getSupabaseService();
   const { data, error } = await supabase
     .from('cuentas')
     .select('nombre, saldo, bancos(nombre)')
+    .eq('auth_user_id', authUserId)
     .eq('tipo', 'disponible')
     .gt('saldo', 0)
     .order('saldo', { ascending: false });
@@ -64,6 +67,7 @@ export type ResultadoReglaGastoCuenta =
  */
 export async function resolverGastoCuentaAntesDeRpc(
   parsed: ParsedMovimiento,
+  authUserId: string,
 ): Promise<ResultadoReglaGastoCuenta> {
   if (parsed.tipo !== 'gasto') {
     return { accion: 'aplicar', parsed };
@@ -74,7 +78,7 @@ export async function resolverGastoCuentaAntesDeRpc(
     return { accion: 'aplicar', parsed };
   }
 
-  const cuentas = await listarDisponiblesConSaldoPositivo();
+  const cuentas = await listarDisponiblesConSaldoPositivo(authUserId);
   if (cuentas.length === 0) {
     return { accion: 'aplicar', parsed };
   }

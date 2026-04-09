@@ -4,10 +4,28 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Asistente financiero</title>
+    <link rel="icon" id="favicon" type="image/x-icon" href="/icons/oscuro/favicon-oscuro.ico" />
+    <link rel="icon" id="favicon-32" type="image/png" sizes="32x32" href="/icons/oscuro/favicon-oscuro-32x32.png" />
+    <link rel="icon" id="favicon-16" type="image/png" sizes="16x16" href="/icons/oscuro/favicon-oscuro-16x16.png" />
+    <link rel="apple-touch-icon" id="apple-icon" sizes="256x256" href="/icons/oscuro/favicon-oscuro-256x256.png" />
+    <script>
+      (function(){
+        var s=localStorage.getItem('theme');
+        if(!s) s=window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark';
+        document.documentElement.dataset.theme=s;
+        var v=s==='light'?'claro':'oscuro';
+        var d=document;
+        function fix(id,attr,val){var el=d.getElementById(id);if(el)el[attr]=val;}
+        fix('favicon','href','/icons/'+v+'/favicon-'+v+'.ico');
+        fix('favicon-32','href','/icons/'+v+'/favicon-'+v+'-32x32.png');
+        fix('favicon-16','href','/icons/'+v+'/favicon-'+v+'-16x16.png');
+        fix('apple-icon','href','/icons/'+v+'/favicon-'+v+'-256x256.png');
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -34,33 +52,39 @@
         --font-mono: "JetBrains Mono", ui-monospace, monospace;
       }
 
-      @media (prefers-color-scheme: light) {
-        :root {
-          --bg: #f4f6fb;
-          --bg-mid: #e8ecf6;
-          --surface: rgba(255, 255, 255, 0.82);
-          --surface-2: rgba(248, 250, 255, 0.95);
-          --border: rgba(15, 23, 42, 0.1);
-          --text: #0f172a;
-          --muted: #64748b;
-          --accent: #0891b2;
-          --accent-dim: #0e7490;
-          --accent-glow: rgba(8, 145, 178, 0.22);
-          --user-bg: rgba(8, 145, 178, 0.1);
-          --neon-disponible: #0891b2;
-          --neon-ahorro: #059669;
-          --neon-gasto: #e11d48;
-          --neon-pendiente: #d97706;
-        }
+      html[data-theme="light"] {
+        --bg: #f4f6fb;
+        --bg-mid: #e8ecf6;
+        --surface: rgba(255, 255, 255, 0.82);
+        --surface-2: rgba(248, 250, 255, 0.95);
+        --border: rgba(15, 23, 42, 0.1);
+        --text: #0f172a;
+        --muted: #64748b;
+        --accent: #0891b2;
+        --accent-dim: #0e7490;
+        --accent-glow: rgba(8, 145, 178, 0.22);
+        --user-bg: rgba(8, 145, 178, 0.1);
+        --neon-disponible: #0891b2;
+        --neon-ahorro: #059669;
+        --neon-gasto: #e11d48;
+        --neon-pendiente: #d97706;
       }
 
       * {
         box-sizing: border-box;
       }
 
+      html {
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior-y: none;
+      }
+
       body {
         margin: 0;
         min-height: 100dvh;
+        min-height: 100svh;
+        height: 100%;
         font-family: var(--font);
         background:
           radial-gradient(ellipse 100% 80% at 85% -10%, rgba(46, 230, 255, 0.14) 0%, transparent 50%),
@@ -68,36 +92,41 @@
           radial-gradient(ellipse 60% 40% at 50% 100%, rgba(94, 247, 178, 0.06) 0%, transparent 45%),
           linear-gradient(168deg, var(--bg) 0%, var(--bg-mid) 42%, #04050c 100%);
         color: var(--text);
+        overflow: hidden;
+        overscroll-behavior-y: none;
       }
 
-      @media (prefers-color-scheme: light) {
-        body {
-          background:
-            radial-gradient(ellipse 90% 70% at 90% 0%, rgba(8, 145, 178, 0.08) 0%, transparent 50%),
-            radial-gradient(ellipse 70% 50% at 0% 100%, rgba(99, 102, 241, 0.06) 0%, transparent 45%),
-            linear-gradient(168deg, var(--bg) 0%, var(--bg-mid) 100%);
-        }
+      html[data-theme="light"] body {
+        background:
+          radial-gradient(ellipse 90% 70% at 90% 0%, rgba(8, 145, 178, 0.08) 0%, transparent 50%),
+          radial-gradient(ellipse 70% 50% at 0% 100%, rgba(99, 102, 241, 0.06) 0%, transparent 45%),
+          linear-gradient(168deg, var(--bg) 0%, var(--bg-mid) 100%);
       }
 
       .app {
         display: flex;
-        max-width: 1280px;
-        margin: 0 auto;
-        min-height: 100dvh;
-        height: 100dvh;
         width: 100%;
+        max-width: none;
+        margin: 0;
+        min-height: 100dvh;
+        min-height: 100svh;
+        height: 100dvh;
+        height: 100svh;
+        overflow: hidden;
+        padding-left: env(safe-area-inset-left, 0);
+        padding-right: env(safe-area-inset-right, 0);
       }
 
       .panel--sidebar {
-        width: 32%;
-        min-width: 280px;
-        max-width: 400px;
+        flex: 0 0 clamp(260px, 30vw, 400px);
+        width: clamp(260px, 30vw, 400px);
         padding: 0;
         border-right: 1px solid var(--border);
         display: flex;
         flex-direction: column;
         min-height: 0;
         max-height: 100dvh;
+        max-height: 100svh;
         overflow: hidden;
         background: linear-gradient(
           180deg,
@@ -131,13 +160,11 @@
         color: transparent;
       }
 
-      @media (prefers-color-scheme: light) {
-        .panel--sidebar h2 {
-          background: none;
-          -webkit-background-clip: unset;
-          background-clip: unset;
-          color: var(--text);
-        }
+      html[data-theme="light"] .panel--sidebar h2 {
+        background: none;
+        -webkit-background-clip: unset;
+        background-clip: unset;
+        color: var(--text);
       }
 
       .panel--sidebar .sub {
@@ -269,15 +296,13 @@
         transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
       }
 
-      @media (prefers-color-scheme: light) {
-        .fin-card {
-          background: linear-gradient(
-            155deg,
-            color-mix(in srgb, #fff 92%, transparent) 0%,
-            color-mix(in srgb, var(--surface-2) 96%, #fff) 100%
-          );
-          box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-        }
+      html[data-theme="light"] .fin-card {
+        background: linear-gradient(
+          155deg,
+          color-mix(in srgb, #fff 92%, transparent) 0%,
+          color-mix(in srgb, var(--surface-2) 96%, #fff) 100%
+        );
+        box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
       }
 
       .fin-card:hover {
@@ -395,10 +420,8 @@
         text-shadow: 0 0 28px color-mix(in srgb, var(--card-line, var(--accent)) 25%, transparent);
       }
 
-      @media (prefers-color-scheme: light) {
-        .fin-card__monto {
-          text-shadow: none;
-        }
+      html[data-theme="light"] .fin-card__monto {
+        text-shadow: none;
       }
 
       .fin-card__fecha {
@@ -433,7 +456,7 @@
       }
 
       .panel--chat {
-        flex: 1;
+        flex: 1 1 0;
         min-width: 0;
         min-height: 0;
         display: flex;
@@ -448,11 +471,13 @@
       }
 
       .shell {
-        flex: 1;
+        flex: 1 1 0;
         display: flex;
         flex-direction: column;
-        padding: 1rem 1.25rem 0 1rem;
+        padding: clamp(0.65rem, 2vw, 1rem) clamp(0.75rem, 2.5vw, 1.25rem) 0
+          clamp(0.65rem, 2vw, 1rem);
         min-height: 0;
+        width: 100%;
       }
 
       header {
@@ -498,23 +523,23 @@
         letter-spacing: -0.04em;
       }
 
-      @media (prefers-color-scheme: dark) {
-        header h1 {
-          background: linear-gradient(100deg, var(--text) 0%, color-mix(in srgb, var(--accent) 40%, var(--text)) 100%);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-        }
+      html:not([data-theme="light"]) header h1 {
+        background: linear-gradient(100deg, var(--text) 0%, color-mix(in srgb, var(--accent) 40%, var(--text)) 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
       }
 
       #log {
-        flex: 1;
+        flex: 1 1 0;
+        min-height: 0;
         overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
         padding: 1rem 0;
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
-        min-height: 12rem;
       }
 
       .msg {
@@ -555,18 +580,16 @@
         -webkit-backdrop-filter: blur(10px);
       }
 
-      @media (prefers-color-scheme: light) {
-        .msg.user {
-          background: linear-gradient(135deg, rgba(8, 145, 178, 0.12) 0%, rgba(255, 255, 255, 0.95) 100%);
-          border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
-          box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
-        }
+      html[data-theme="light"] .msg.user {
+        background: linear-gradient(135deg, rgba(8, 145, 178, 0.12) 0%, rgba(255, 255, 255, 0.95) 100%);
+        border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+      }
 
-        .msg.assistant {
-          background: linear-gradient(145deg, #fff 0%, var(--surface-2) 100%);
-          box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
-          backdrop-filter: none;
-        }
+      html[data-theme="light"] .msg.assistant {
+        background: linear-gradient(145deg, #fff 0%, var(--surface-2) 100%);
+        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+        backdrop-filter: none;
       }
 
       .msg.assistant.warn {
@@ -593,7 +616,7 @@
         flex-shrink: 0;
         position: sticky;
         bottom: 0;
-        padding: 1rem 0 max(1rem, env(safe-area-inset-bottom));
+        padding: 1rem 0 max(1rem, env(safe-area-inset-bottom, 0px));
         background: linear-gradient(
           to top,
           color-mix(in srgb, var(--bg) 96%, var(--surface)) 0%,
@@ -624,11 +647,9 @@
         transition: border-color 0.2s ease, box-shadow 0.2s ease;
       }
 
-      @media (prefers-color-scheme: light) {
-        textarea {
-          background: #fff;
-          box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
-        }
+      html[data-theme="light"] textarea {
+        background: #fff;
+        box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
       }
 
       textarea:focus {
@@ -704,22 +725,679 @@
         }
       }
 
+      @media (max-width: 900px) {
+        .panel--sidebar {
+          flex: 0 0 clamp(240px, 34vw, 320px);
+          width: clamp(240px, 34vw, 320px);
+          max-width: min(340px, 38vw);
+        }
+      }
+
       @media (max-width: 768px) {
         .app {
           flex-direction: column;
+          height: 100dvh;
+          height: 100svh;
+          overflow: hidden;
         }
 
         .panel--sidebar {
+          flex: 0 1 auto;
           width: 100%;
           max-width: none;
+          max-height: min(40vh, 340px);
           border-right: none;
           border-bottom: 1px solid var(--border);
-          max-height: min(42vh, 100dvh);
         }
+
+        .panel--chat {
+          flex: 1 1 0;
+          min-height: 0;
+        }
+
+        .shell {
+          flex: 1 1 0;
+          min-height: 0;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .panel--sidebar {
+          max-height: min(36vh, 300px);
+        }
+
+        .row {
+          flex-wrap: wrap;
+        }
+
+        button[type="submit"] {
+          width: 100%;
+          margin-top: 0.35rem;
+        }
+      }
+
+      /*
+        El atributo [hidden] usa display:none !important en el UA, pero reglas como
+        .screen-login { display:flex } pueden ganar por orden. Forzamos ocultación
+        para que el login no quede como capa fija encima del panel.
+      */
+      #screen-login[hidden],
+      #screen-app[hidden] {
+        display: none !important;
+        pointer-events: none !important;
+        visibility: hidden !important;
+      }
+
+      /* Pantalla de acceso — alineada al panel; no quitar #screen-login[hidden] arriba */
+      .screen-login {
+        --login-font-display: "Plus Jakarta Sans", var(--font), system-ui, sans-serif;
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        isolation: isolate;
+        min-height: 100dvh;
+        min-height: 100svh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.25rem;
+        padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0));
+        overflow: hidden;
+        color: var(--text);
+        background:
+          radial-gradient(ellipse 90% 70% at 88% -5%, rgba(46, 230, 255, 0.16) 0%, transparent 52%),
+          radial-gradient(ellipse 75% 55% at -8% 85%, rgba(167, 139, 250, 0.14) 0%, transparent 50%),
+          radial-gradient(ellipse 55% 45% at 50% 105%, rgba(94, 247, 178, 0.07) 0%, transparent 48%),
+          linear-gradient(168deg, var(--bg) 0%, var(--bg-mid) 44%, #03040a 100%);
+      }
+
+      html[data-theme="light"] .screen-login {
+        background:
+          radial-gradient(ellipse 85% 65% at 92% 5%, rgba(8, 145, 178, 0.1) 0%, transparent 50%),
+          radial-gradient(ellipse 70% 50% at 0% 95%, rgba(99, 102, 241, 0.07) 0%, transparent 48%),
+          linear-gradient(168deg, var(--bg) 0%, var(--bg-mid) 100%);
+      }
+
+      .login-bg {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+
+      .login-bg__mesh {
+        position: absolute;
+        inset: -40%;
+        opacity: 0.45;
+        background-image:
+          linear-gradient(rgba(46, 230, 255, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(46, 230, 255, 0.035) 1px, transparent 1px);
+        background-size: 56px 56px;
+        mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, black 0%, transparent 72%);
+        -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, black 0%, transparent 72%);
+      }
+
+      .login-bg__glow {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(72px);
+        opacity: 0.42;
+      }
+
+      .login-bg__glow--a {
+        width: min(52vw, 380px);
+        height: min(52vw, 380px);
+        top: -14%;
+        right: -6%;
+        background: radial-gradient(circle, rgba(46, 230, 255, 0.55) 0%, transparent 68%);
+      }
+
+      .login-bg__glow--b {
+        width: min(48vw, 340px);
+        height: min(48vw, 340px);
+        bottom: -18%;
+        left: -10%;
+        background: radial-gradient(circle, rgba(167, 139, 250, 0.45) 0%, transparent 68%);
+      }
+
+      .login-card {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 420px;
+        padding: 0;
+        border-radius: 22px;
+        border: 1px solid color-mix(in srgb, var(--border) 90%, var(--accent) 8%);
+        background: linear-gradient(
+          165deg,
+          color-mix(in srgb, var(--surface-2) 92%, transparent) 0%,
+          color-mix(in srgb, var(--surface) 78%, transparent) 100%
+        );
+        box-shadow:
+          0 4px 0 0 color-mix(in srgb, var(--accent) 22%, transparent),
+          0 28px 56px rgba(0, 0, 0, 0.42),
+          0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+          0 1px 0 rgba(255, 255, 255, 0.07) inset;
+        backdrop-filter: blur(20px) saturate(1.2);
+        -webkit-backdrop-filter: blur(20px) saturate(1.2);
+        overflow: hidden;
+      }
+
+      .login-card::before {
+        content: "";
+        display: block;
+        height: 3px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          color-mix(in srgb, var(--accent) 85%, transparent),
+          color-mix(in srgb, var(--accent-violet) 70%, transparent),
+          transparent
+        );
+        opacity: 0.95;
+      }
+
+      .login-card__inner {
+        padding: 1.85rem 1.85rem 1.75rem;
+      }
+
+      html[data-theme="light"] .login-card {
+        box-shadow:
+          0 3px 0 0 color-mix(in srgb, var(--accent) 18%, transparent),
+          0 24px 48px rgba(15, 23, 42, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      }
+
+      .login-brand {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .login-brand__mark {
+        flex-shrink: 0;
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow:
+          0 8px 24px color-mix(in srgb, var(--accent) 32%, transparent),
+          inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      }
+
+      .login-brand__mark img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: inherit;
+      }
+
+      .login-brand__text {
+        min-width: 0;
+      }
+
+      .login-title {
+        margin: 0 0 0.35rem;
+        font-family: var(--login-font-display);
+        font-size: clamp(1.45rem, 4.2vw, 1.75rem);
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        line-height: 1.15;
+      }
+
+      html:not([data-theme="light"]) .login-title {
+        background: linear-gradient(
+          105deg,
+          var(--text) 0%,
+          color-mix(in srgb, var(--accent) 55%, var(--text)) 45%,
+          color-mix(in srgb, var(--accent-violet) 35%, var(--text)) 100%
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .login-sub {
+        margin: 0;
+        font-size: 0.91rem;
+        color: var(--muted);
+        line-height: 1.5;
+        max-width: 32ch;
+      }
+
+      .login-field {
+        margin-bottom: 1.05rem;
+      }
+
+      .login-card label {
+        display: block;
+        margin-bottom: 0.45rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      .login-input-shell {
+        position: relative;
+        border-radius: 14px;
+        background: color-mix(in srgb, #05070f 92%, transparent);
+        border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      html[data-theme="light"] .login-input-shell {
+        background: #fff;
+        box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+      }
+
+      .login-input-shell:focus-within {
+        border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+        box-shadow:
+          inset 0 1px 2px rgba(0, 0, 0, 0.2),
+          0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent),
+          0 0 28px -8px color-mix(in srgb, var(--accent) 38%, transparent);
+      }
+
+      .login-card input[type="email"],
+      .login-card input[type="password"] {
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 0.82rem 1rem;
+        border-radius: 14px;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        font: inherit;
+        font-size: 1rem;
+        box-sizing: border-box;
+      }
+
+      .login-card input::placeholder {
+        color: color-mix(in srgb, var(--muted) 75%, transparent);
+      }
+
+      .login-card input:focus {
+        outline: none;
+      }
+
+      .login-hint {
+        margin: 0.65rem 0 0;
+        font-size: 0.78rem;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+
+      .login-error {
+        margin: 0 0 1rem;
+        padding: 0.65rem 0.85rem;
+        border-radius: 12px;
+        font-size: 0.84rem;
+        line-height: 1.4;
+        color: var(--err);
+        background: color-mix(in srgb, var(--err) 11%, transparent);
+        border: 1px solid color-mix(in srgb, var(--err) 30%, transparent);
+      }
+
+      .login-card .btn-login-submit {
+        width: 100%;
+        margin-top: 0.35rem;
+        padding: 0.88rem 1.1rem;
+        border-radius: 14px;
+        border: none;
+        background: linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--accent) 92%, #fff) 0%,
+          var(--accent-dim) 48%,
+          color-mix(in srgb, var(--accent-violet) 38%, var(--accent-dim)) 100%
+        );
+        color: #020308;
+        font-family: var(--login-font-display);
+        font-weight: 700;
+        font-size: 0.88rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        cursor: pointer;
+        box-shadow:
+          0 6px 24px color-mix(in srgb, var(--accent) 28%, transparent),
+          inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+      }
+
+      .login-card .btn-login-submit:hover:not(:disabled) {
+        transform: translateY(-1px);
+        filter: brightness(1.05);
+        box-shadow:
+          0 10px 32px color-mix(in srgb, var(--accent) 38%, transparent),
+          inset 0 1px 0 rgba(255, 255, 255, 0.45);
+      }
+
+      .login-card .btn-login-submit:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .login-divider {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin: 1.1rem 0 0.85rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .login-divider::before,
+      .login-divider::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--border) 90%, var(--accent) 10%), transparent);
+      }
+
+      .login-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.6rem;
+      }
+
+      .btn-register {
+        width: 100%;
+        padding: 0.78rem 1rem;
+        border-radius: 14px;
+        border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+        background: color-mix(in srgb, var(--surface-2) 35%, transparent);
+        color: var(--text);
+        font: inherit;
+        font-family: var(--login-font-display);
+        font-size: 0.82rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .btn-register:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+        background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
+        box-shadow: 0 0 24px -10px color-mix(in srgb, var(--accent) 35%, transparent);
+      }
+
+      .btn-register:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .login-loading {
+        margin: 1.15rem 0 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+
+      .login-loading__dots {
+        display: inline-flex;
+        gap: 4px;
+      }
+
+      .login-loading__dots span {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: color-mix(in srgb, var(--accent) 65%, var(--muted));
+        animation: login-dot 1.1s ease-in-out infinite;
+      }
+
+      .login-loading__dots span:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+
+      .login-loading__dots span:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+
+      @keyframes login-dot {
+        0%,
+        80%,
+        100% {
+          opacity: 0.35;
+          transform: scale(0.85);
+        }
+        40% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .login-bg__glow--a,
+        .login-bg__glow--b {
+          animation: none;
+        }
+
+        .login-card .btn-login-submit {
+          transition: none;
+        }
+
+        .login-card .btn-login-submit:hover:not(:disabled) {
+          transform: none;
+        }
+
+        .login-loading__dots span {
+          animation: none;
+          opacity: 0.7;
+        }
+      }
+
+      .screen-app {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 100dvh;
+        min-height: 100svh;
+        height: 100dvh;
+        height: 100svh;
+        overflow: hidden;
+        background: inherit;
+      }
+
+      .screen-app .app {
+        flex: 1 1 0;
+        min-height: 0;
+        height: auto;
+      }
+
+      .private-topbar {
+        flex-shrink: 0;
+        position: relative;
+        z-index: 50;
+        isolation: isolate;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        padding: 0.55rem 1rem 0.55rem 1.1rem;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--surface-2) 35%, transparent) 0%,
+          transparent 100%
+        );
+        backdrop-filter: blur(12px);
+      }
+
+      .private-topbar__brand {
+        font-weight: 700;
+        font-size: 0.95rem;
+        letter-spacing: -0.02em;
+      }
+
+      .private-topbar__user {
+        flex: 1;
+        text-align: center;
+        font-size: 0.8rem;
+        color: var(--muted);
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .btn-logout {
+        flex-shrink: 0;
+        position: relative;
+        z-index: 1;
+        pointer-events: auto;
+        font: inherit;
+        font-size: 0.78rem;
+        padding: 0.35rem 0.65rem;
+        border-radius: 10px;
+        border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+        background: color-mix(in srgb, var(--surface-2) 40%, transparent);
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .btn-logout:hover {
+        color: var(--text);
+        border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+      }
+
+      .btn-theme-toggle {
+        flex-shrink: 0;
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        border-radius: 10px;
+        border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+        background: color-mix(in srgb, var(--surface-2) 40%, transparent);
+        color: var(--muted);
+        cursor: pointer;
+        transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+      }
+
+      .btn-theme-toggle:hover {
+        color: var(--accent);
+        border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+        background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
+      }
+
+      .btn-theme-toggle svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .btn-theme-toggle .icon-sun { display: none; }
+      .btn-theme-toggle .icon-moon { display: block; }
+      html[data-theme="light"] .btn-theme-toggle .icon-sun { display: block; }
+      html[data-theme="light"] .btn-theme-toggle .icon-moon { display: none; }
+
+      .login-theme-toggle {
+        position: absolute;
+        top: 1.15rem;
+        right: 1.15rem;
+        z-index: 10;
       }
     </style>
   </head>
   <body>
+    <div id="screen-login" class="screen-login">
+      <button type="button" class="btn-theme-toggle login-theme-toggle" id="theme-toggle-login" aria-label="Cambiar tema" title="Modo claro / oscuro">
+        <svg class="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+      </button>
+      <div class="login-bg" aria-hidden="true">
+        <div class="login-bg__mesh"></div>
+        <div class="login-bg__glow login-bg__glow--a"></div>
+        <div class="login-bg__glow login-bg__glow--b"></div>
+      </div>
+      <div class="login-card">
+        <div class="login-card__inner">
+          <div class="login-brand">
+            <div class="login-brand__mark" aria-hidden="true">
+              <img id="brand-icon" src="/icons/oscuro/favicon-oscuro-256x256.png" alt="" />
+            </div>
+            <div class="login-brand__text">
+              <h1 class="login-title">Tu espacio financiero</h1>
+              <p class="login-sub">Inicia sesión o crea una cuenta para ver tus saldos y usar el asistente.</p>
+            </div>
+          </div>
+          <form id="login-form" autocomplete="on">
+            <div class="login-field">
+              <label for="login-email">Correo electrónico</label>
+              <div class="login-input-shell">
+                <input
+                  type="email"
+                  id="login-email"
+                  name="email"
+                  autocomplete="username"
+                  placeholder="tu@correo.cl"
+                  required
+                />
+              </div>
+            </div>
+            <div class="login-field">
+              <label for="login-password">Contraseña</label>
+              <div class="login-input-shell">
+                <input
+                  type="password"
+                  id="login-password"
+                  name="password"
+                  autocomplete="current-password"
+                  placeholder="Mínimo 6 caracteres al registrarte"
+                  required
+                />
+              </div>
+            </div>
+            <p class="login-hint">
+              ¿Nuevo aquí? Pulsa <strong>Crear cuenta nueva</strong> con el mismo correo y contraseña que quieras usar.
+            </p>
+            <p id="login-error" class="login-error" hidden role="alert"></p>
+            <div class="login-actions">
+              <button type="submit" class="btn-login-submit" id="login-submit">Iniciar sesión</button>
+              <div class="login-divider">o bien</div>
+              <button type="button" class="btn-register" id="register-submit">Crear cuenta nueva</button>
+            </div>
+          </form>
+          <p id="login-loading" class="login-loading">
+            <span class="login-loading__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+            <span>Comprobando sesión…</span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-app" class="screen-app" hidden>
+      <header class="private-topbar" aria-label="Barra de sesión">
+        <span class="private-topbar__brand">Finanzas</span>
+        <span id="user-email-display" class="private-topbar__user"></span>
+        <button type="button" class="btn-theme-toggle" id="theme-toggle-app" aria-label="Cambiar tema" title="Modo claro / oscuro">
+          <svg class="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+        </button>
+        <button type="button" id="btn-logout" class="btn-logout">Cerrar sesión</button>
+      </header>
     <div class="app">
       <aside class="panel panel--sidebar" aria-label="Resumen financiero por secciones">
         <div class="sidebar-intro">
@@ -758,515 +1436,34 @@
         </div>
       </main>
     </div>
+    </div>
+    <script type="module" src="/auth-shell.js"></script>
     <script>
       (function () {
-        const logEl = document.getElementById("log");
-        const form = document.getElementById("form");
-        const input = document.getElementById("input");
-        const sendBtn = document.getElementById("send");
-        const btnClearChat = document.getElementById("btn-clear-chat");
-        const resumenList = document.getElementById("resumen-list");
-        const resumenTotales = document.getElementById("resumen-totales");
-        const resumenStatus = document.getElementById("resumen-status");
-
-        const CHAT_SESSION_STORAGE_KEY = "finanzas_chat_session_id";
-
-        function newSessionUuid() {
-          if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-            return crypto.randomUUID();
-          }
-          const b = new Uint8Array(16);
-          if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-            crypto.getRandomValues(b);
-          } else {
-            for (let i = 0; i < 16; i++) b[i] = (Math.random() * 256) | 0;
-          }
-          b[6] = (b[6] & 0x0f) | 0x40;
-          b[8] = (b[8] & 0x3f) | 0x80;
-          const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
-          return (
-            h.slice(0, 8) +
-            "-" +
-            h.slice(8, 12) +
-            "-" +
-            h.slice(12, 16) +
-            "-" +
-            h.slice(16, 20) +
-            "-" +
-            h.slice(20, 32)
-          );
+        function applyTheme(theme) {
+          document.documentElement.dataset.theme = theme;
+          localStorage.setItem('theme', theme);
+          var isLight = theme === 'light';
+          var variant = isLight ? 'claro' : 'oscuro';
+          var ico = document.getElementById('favicon');
+          var f32 = document.getElementById('favicon-32');
+          var f16 = document.getElementById('favicon-16');
+          var apple = document.getElementById('apple-icon');
+          var brand = document.getElementById('brand-icon');
+          if (ico) ico.href = '/icons/' + variant + '/favicon-' + variant + '.ico';
+          if (f32) f32.href = '/icons/' + variant + '/favicon-' + variant + '-32x32.png';
+          if (f16) f16.href = '/icons/' + variant + '/favicon-' + variant + '-16x16.png';
+          if (apple) apple.href = '/icons/' + variant + '/favicon-' + variant + '-256x256.png';
+          if (brand) brand.src = '/icons/' + variant + '/favicon-' + variant + '-256x256.png';
         }
-
-        function getOrCreateSessionId() {
-          try {
-            let id = localStorage.getItem(CHAT_SESSION_STORAGE_KEY);
-            if (id && typeof id === "string") id = id.trim();
-            if (id && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(id)) {
-              return id;
-            }
-            const nu = newSessionUuid();
-            localStorage.setItem(CHAT_SESSION_STORAGE_KEY, nu);
-            return nu;
-          } catch {
-            return newSessionUuid();
-          }
+        function toggle() {
+          var current = document.documentElement.dataset.theme || 'dark';
+          applyTheme(current === 'light' ? 'dark' : 'light');
         }
-
-        async function cargarHistorialDesdeServidor() {
-          const sid = getOrCreateSessionId();
-          try {
-            const res = await fetch(
-              "/api/chat-history?session_id=" + encodeURIComponent(sid),
-              { cache: "no-store" },
-            );
-            const ct = res.headers.get("content-type") || "";
-            const data = ct.includes("application/json") ? await res.json() : null;
-            if (!res.ok) {
-              throw new Error((data && data.error) || "Error " + res.status);
-            }
-            const arr = data && Array.isArray(data.messages) ? data.messages : [];
-            for (const m of arr) {
-              if (!m || (m.role !== "user" && m.role !== "assistant")) continue;
-              const t = typeof m.message === "string" ? m.message : "";
-              if (!t) continue;
-              appendBubble(m.role, t, { warn: false });
-            }
-          } catch {
-            appendSystem(
-              "No se pudo cargar el historial guardado. El chat sigue funcionando.",
-            );
-          }
-        }
-
-        function formatMonto(n, moneda) {
-          const x = Math.round(Number(n));
-          if (!Number.isFinite(x)) return String(n);
-          const m = (moneda || "CLP").trim().toUpperCase();
-          if (m === "CLP") {
-            return "$" + x.toLocaleString("es-CL", { maximumFractionDigits: 0 });
-          }
-          return x.toLocaleString("es-CL", { maximumFractionDigits: 0 }) + " " + m;
-        }
-
-        function formatFechaCorta(iso) {
-          if (!iso || typeof iso !== "string") return "";
-          try {
-            const d = new Date(iso);
-            if (Number.isNaN(d.getTime())) return "";
-            return d.toLocaleDateString("es-CL", { day: "numeric", month: "short" });
-          } catch {
-            return "";
-          }
-        }
-
-        function elFinCard(nombre, bancoLine, montoStr, variant, fechaStr) {
-          const card = document.createElement("article");
-          card.className = "fin-card fin-card--" + variant;
-          const tit = document.createElement("h3");
-          tit.className = "fin-card__nombre";
-          tit.textContent = nombre || "—";
-          card.appendChild(tit);
-          if (bancoLine) {
-            const meta = document.createElement("p");
-            meta.className = "fin-card__meta";
-            meta.textContent = bancoLine;
-            card.appendChild(meta);
-          }
-          const mon = document.createElement("p");
-          mon.className = "fin-card__monto";
-          mon.textContent = montoStr;
-          card.appendChild(mon);
-          if (fechaStr) {
-            const fe = document.createElement("p");
-            fe.className = "fin-card__fecha";
-            fe.textContent = fechaStr;
-            card.appendChild(fe);
-          }
-          return card;
-        }
-
-        function filaTotalIntro(label, montoFormateado) {
-          const row = document.createElement("div");
-          row.className = "sidebar-totales__row";
-          const lab = document.createElement("span");
-          lab.className = "sidebar-totales__label";
-          lab.textContent = label;
-          const val = document.createElement("span");
-          val.className = "sidebar-totales__value";
-          val.textContent = montoFormateado;
-          row.appendChild(lab);
-          row.appendChild(val);
-          return row;
-        }
-
-        function pintarTotalesIntro(data, moneda) {
-          if (!resumenTotales) return;
-          resumenTotales.replaceChildren();
-          const ahr =
-            data.saldo_ahorrado_total != null && typeof data.saldo_ahorrado_total === "number"
-              ? data.saldo_ahorrado_total
-              : 0;
-          const pend =
-            data.dinero_pendiente_repartir != null && typeof data.dinero_pendiente_repartir === "number"
-              ? data.dinero_pendiente_repartir
-              : 0;
-          resumenTotales.appendChild(
-            filaTotalIntro("Disponible", formatMonto(data.saldo_disponible, moneda)),
-          );
-          if (pend > 0) {
-            resumenTotales.appendChild(
-              filaTotalIntro("Pendiente de repartir", formatMonto(pend, moneda)),
-            );
-          }
-          resumenTotales.appendChild(filaTotalIntro("Ahorro", formatMonto(ahr, moneda)));
-        }
-
-        function seccionDashboard(titulo, totalStr) {
-          const sec = document.createElement("section");
-          sec.className = "dash-section";
-          const head = document.createElement("div");
-          head.className = "dash-section__head";
-          const h = document.createElement("h3");
-          h.className = "dash-section__title";
-          h.textContent = titulo;
-          head.appendChild(h);
-          if (totalStr) {
-            const t = document.createElement("p");
-            t.className = "dash-section__total";
-            t.textContent = totalStr;
-            head.appendChild(t);
-          }
-          sec.appendChild(head);
-          const cards = document.createElement("div");
-          cards.className = "dash-section__cards";
-          sec.appendChild(cards);
-          return { sec, cards };
-        }
-
-        async function refreshResumen() {
-          resumenStatus.textContent = "Actualizando…";
-          resumenStatus.classList.remove("error");
-          try {
-            const res = await fetch("/api/resumen-cuentas", { cache: "no-store" });
-            const ct = res.headers.get("content-type") || "";
-            const data = ct.includes("application/json") ? await res.json() : null;
-            if (!res.ok) {
-              throw new Error((data && data.error) || "Error " + res.status);
-            }
-            if (!data || typeof data.saldo_disponible !== "number") {
-              throw new Error("Respuesta inválida");
-            }
-
-            resumenList.replaceChildren();
-            resumenStatus.textContent = "";
-
-            const moneda = data.moneda || "CLP";
-            pintarTotalesIntro(data, moneda);
-            const disp = Array.isArray(data.seccion_disponible) ? data.seccion_disponible : [];
-            const ahr = Array.isArray(data.seccion_ahorro) ? data.seccion_ahorro : [];
-            const gUlt = Array.isArray(data.gastos_ultimos) ? data.gastos_ultimos : [];
-            const gCat = Array.isArray(data.gastos_por_categoria) ? data.gastos_por_categoria : [];
-            const pend =
-              data.dinero_pendiente_repartir != null && typeof data.dinero_pendiente_repartir === "number"
-                ? data.dinero_pendiente_repartir
-                : 0;
-
-            const sPend = seccionDashboard(
-              "Pendiente de repartir",
-              pend > 0 ? formatMonto(pend, moneda) : "",
-            );
-            resumenList.appendChild(sPend.sec);
-            if (pend > 0) {
-              sPend.cards.appendChild(
-                elFinCard(
-                  "Por asignar a una cuenta",
-                  "Ingresos sin cuenta o saldo aún no repartido",
-                  formatMonto(pend, moneda),
-                  "pendiente",
-                  "",
-                ),
-              );
-            } else {
-              const emptyP = document.createElement("div");
-              emptyP.className = "empty-state";
-              emptyP.textContent =
-                "No hay dinero pendiente: todo el disponible está en cuentas o el saldo es cero.";
-              sPend.cards.appendChild(emptyP);
-            }
-
-            const s1 = seccionDashboard(
-              "Dinero disponible",
-              "Total " + formatMonto(data.saldo_disponible, moneda),
-            );
-            resumenList.appendChild(s1.sec);
-            if (disp.length === 0) {
-              const empty = document.createElement("div");
-              empty.className = "empty-state";
-              empty.textContent =
-                pend > 0
-                  ? "Aún no hay cuentas con saldo. Usa el chat para asignar desde «disponible sin cuenta» (ej. a Cuenta RUT o Mercado Pago)."
-                  : "Sin cuentas disponibles con saldo en la base de datos.";
-              s1.cards.appendChild(empty);
-            } else {
-              for (const c of disp) {
-                if (!c) continue;
-                const banco = c.banco && String(c.banco).trim() ? String(c.banco).trim() : null;
-                s1.cards.appendChild(
-                  elFinCard(String(c.nombre || "—"), banco, formatMonto(c.monto, moneda), "disponible", ""),
-                );
-              }
-            }
-
-            const s2 = seccionDashboard(
-              "Ahorro",
-              "Total " + formatMonto(data.saldo_ahorrado_total, moneda),
-            );
-            resumenList.appendChild(s2.sec);
-            if (ahr.length === 0) {
-              const empty = document.createElement("div");
-              empty.className = "empty-state";
-              empty.textContent = "Sin ahorros registrados en cuentas.";
-              s2.cards.appendChild(empty);
-            } else {
-              for (const c of ahr) {
-                if (!c) continue;
-                const banco = c.banco && String(c.banco).trim() ? String(c.banco).trim() : null;
-                s2.cards.appendChild(
-                  elFinCard(String(c.nombre || "—"), banco, formatMonto(c.monto, moneda), "ahorro", ""),
-                );
-              }
-            }
-
-            let sumaUltimos = 0;
-            for (const g of gUlt) {
-              if (!g) continue;
-              const v = Math.round(Number(g.monto));
-              if (Number.isFinite(v) && v > 0) sumaUltimos += v;
-            }
-            let sumaCategorias = 0;
-            for (const row of gCat) {
-              if (!row) continue;
-              const v = Math.round(Number(row.monto));
-              if (Number.isFinite(v) && v > 0) sumaCategorias += v;
-            }
-            const partesGastos = [];
-            if (sumaUltimos > 0) partesGastos.push("Últimos " + formatMonto(sumaUltimos, moneda));
-            if (sumaCategorias > 0) partesGastos.push("Por categoría " + formatMonto(sumaCategorias, moneda));
-            const totalGastosStr = partesGastos.length > 0 ? partesGastos.join(" · ") : "";
-
-            const s3 = seccionDashboard("Gastos", totalGastosStr);
-            resumenList.appendChild(s3.sec);
-            const subUlt = document.createElement("h4");
-            subUlt.className = "dash-section__subtitle";
-            subUlt.textContent = "Últimos gastos";
-            s3.cards.appendChild(subUlt);
-            if (gUlt.length === 0) {
-              const empty = document.createElement("div");
-              empty.className = "empty-state";
-              empty.style.padding = "0.5rem 0";
-              empty.textContent = "Aún no hay gastos recientes.";
-              s3.cards.appendChild(empty);
-            } else {
-              for (const g of gUlt) {
-                if (!g) continue;
-                const fe = formatFechaCorta(g.fecha);
-                s3.cards.appendChild(
-                  elFinCard(
-                    String(g.etiqueta || "Gasto"),
-                    null,
-                    formatMonto(g.monto, moneda),
-                    "gasto",
-                    fe,
-                  ),
-                );
-              }
-            }
-            const subCat = document.createElement("h4");
-            subCat.className = "dash-section__subtitle";
-            subCat.style.marginTop = "0.65rem";
-            subCat.textContent = "Por categoría";
-            s3.cards.appendChild(subCat);
-            if (gCat.length === 0) {
-              const empty = document.createElement("div");
-              empty.className = "empty-state";
-              empty.style.padding = "0.5rem 0";
-              empty.textContent = "Sin datos por categoría.";
-              s3.cards.appendChild(empty);
-            } else {
-              for (const row of gCat) {
-                if (!row) continue;
-                s3.cards.appendChild(
-                  elFinCard(
-                    String(row.categoria || "—"),
-                    null,
-                    formatMonto(row.monto, moneda),
-                    "gasto",
-                    "",
-                  ),
-                );
-              }
-            }
-          } catch (err) {
-            if (resumenTotales) resumenTotales.replaceChildren();
-            resumenStatus.textContent =
-              err instanceof Error ? err.message : String(err);
-            resumenStatus.classList.add("error");
-          }
-        }
-
-        function scrollToBottom() {
-          logEl.scrollTop = logEl.scrollHeight;
-        }
-
-        function appendBubble(role, text, opts) {
-          const div = document.createElement("div");
-          div.className = "msg " + role + (opts && opts.warn ? " warn" : "");
-          div.textContent = text;
-          logEl.appendChild(div);
-          requestAnimationFrame(scrollToBottom);
-        }
-
-        function appendSystem(text) {
-          const div = document.createElement("div");
-          div.className = "msg system";
-          div.textContent = text;
-          logEl.appendChild(div);
-          requestAnimationFrame(scrollToBottom);
-        }
-
-        function showTyping() {
-          const div = document.createElement("div");
-          div.className = "msg assistant typing";
-          div.setAttribute("aria-busy", "true");
-          div.textContent = "Escribiendo…";
-          logEl.appendChild(div);
-          requestAnimationFrame(scrollToBottom);
-          return div;
-        }
-
-        function removeTyping(el) {
-          if (el && el.parentNode === logEl) {
-            logEl.removeChild(el);
-          }
-        }
-
-        async function sendMessage(text) {
-          const res = await fetch("/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: text, sessionId: getOrCreateSessionId() }),
-          });
-
-          const ct = res.headers.get("content-type") || "";
-          let body;
-          try {
-            body = ct.includes("application/json") ? await res.json() : { raw: await res.text() };
-          } catch {
-            throw new Error("Respuesta no legible del servidor.");
-          }
-
-          if (!res.ok) {
-            const err =
-              body && typeof body.error === "string"
-                ? body.error
-                : "Error HTTP " + res.status;
-            throw new Error(err);
-          }
-
-          if (!body || typeof body.texto !== "string") {
-            throw new Error("Formato de respuesta inesperado.");
-          }
-
-          return body;
-        }
-
-        form.addEventListener("submit", async function (e) {
-          e.preventDefault();
-          const text = input.value.trim();
-          if (!text) return;
-
-          appendBubble("user", text);
-          input.value = "";
-          input.style.height = "auto";
-
-          sendBtn.disabled = true;
-          input.disabled = true;
-
-          const typingEl = showTyping();
-
-          try {
-            const data = await sendMessage(text);
-            removeTyping(typingEl);
-            appendBubble("assistant", data.texto, { warn: !data.resultado || !data.resultado.ok });
-            void refreshResumen();
-          } catch (err) {
-            removeTyping(typingEl);
-            appendBubble(
-              "assistant",
-              err instanceof Error ? err.message : String(err),
-              { warn: true },
-            );
-          } finally {
-            sendBtn.disabled = false;
-            input.disabled = false;
-            input.focus();
-            requestAnimationFrame(scrollToBottom);
-          }
-        });
-
-        input.addEventListener("keydown", function (e) {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            form.requestSubmit();
-          }
-        });
-
-        input.addEventListener("input", function () {
-          input.style.height = "auto";
-          input.style.height = Math.min(input.scrollHeight, 128) + "px";
-        });
-
-        if (btnClearChat) {
-          btnClearChat.addEventListener("click", async function () {
-            if (
-              !confirm(
-                "¿Quieres limpiar solo el chat visible? No se borran movimientos ni saldos.",
-              )
-            ) {
-              return;
-            }
-            const sid = getOrCreateSessionId();
-            try {
-              const res = await fetch("/api/chat-clear", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ session_id: sid }),
-              });
-              const ct = res.headers.get("content-type") || "";
-              const data = ct.includes("application/json") ? await res.json() : null;
-              if (!res.ok) {
-                throw new Error((data && data.error) || "Error " + res.status);
-              }
-              logEl.replaceChildren();
-              appendSystem("Chat limpiado. Escribe un mensaje para comenzar de nuevo.");
-            } catch (err) {
-              appendSystem(
-                err instanceof Error ? err.message : String(err),
-              );
-            }
-          });
-        }
-
-        async function inicializarChatUI() {
-          await cargarHistorialDesdeServidor();
-          if (logEl.children.length === 0) {
-            appendSystem("Listo. Escribe un mensaje y pulsa Enviar.");
-          }
-          input.focus();
-          void refreshResumen();
-        }
-
-        void inicializarChatUI();
+        var saved = localStorage.getItem('theme');
+        if (saved) applyTheme(saved);
+        document.getElementById('theme-toggle-login').addEventListener('click', toggle);
+        document.getElementById('theme-toggle-app').addEventListener('click', toggle);
       })();
     </script>
   </body>

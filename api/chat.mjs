@@ -2,17 +2,24 @@
  * Vercel Serverless: POST JSON { "message": "..." }.
  * Requiere `npm run build` para generar `dist/` antes del deploy.
  */
+import { requireAuth } from '../lib/authGuard.mjs';
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     return res.status(204).end();
   }
 
   if (req.method !== 'POST') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const user = await requireAuth(req, res);
+  if (!user) {
+    return;
   }
 
   try {
@@ -29,7 +36,11 @@ export default async function handler(req, res) {
         ? String(body.sessionId ?? body.session_id).trim()
         : null;
 
-    const out = await handleChatPost(message.trim(), { sessionId });
+    const out = await handleChatPost(message.trim(), {
+      sessionId,
+      authUserId: user.id,
+      authUserEmail: user.email ?? null,
+    });
     res.setHeader('Access-Control-Allow-Origin', '*');
     return res.status(200).json(out);
   } catch (e) {

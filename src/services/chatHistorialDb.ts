@@ -29,6 +29,37 @@ export function normalizarSessionIdChat(raw: string | null | undefined): string 
   return s;
 }
 
+/** `auth.users.id` (UUID). Sin valor válido no se persiste ni lista historial. */
+export function normalizarAuthUserId(raw: string | null | undefined): string | null {
+  if (raw == null) {
+    return null;
+  }
+  const s = String(raw).trim();
+  if (!s || s.length > 80) {
+    return null;
+  }
+  if (!UUID_RE.test(s)) {
+    return null;
+  }
+  return s;
+}
+
+/** Correo normalizado para columna `user_email` (JWT / sesión); null si no aplica. arquitectura11 */
+export function normalizarUserEmailChat(raw: string | null | undefined): string | null {
+  if (raw == null) {
+    return null;
+  }
+  const s = String(raw).trim().toLowerCase();
+  if (!s || s.length > 320) {
+    return null;
+  }
+  const at = s.indexOf('@');
+  if (at < 1 || at === s.length - 1 || s.indexOf('@', at + 1) !== -1) {
+    return null;
+  }
+  return s;
+}
+
 function textoPersistible(s: string): boolean {
   return s.trim().length > 0;
 }
@@ -58,16 +89,25 @@ export async function appendExchangeToChatHistorial(
   sessionId: string | null,
   userMessage: string,
   assistantMessage: string,
+  authUserId: string | null,
+  authUserEmail: string | null,
 ): Promise<void> {
   const sid = normalizarSessionIdChat(sessionId);
-  if (!sid || !textoPersistible(userMessage) || !textoPersistible(assistantMessage)) {
+  const uid = normalizarAuthUserId(authUserId);
+  const emailRow = normalizarUserEmailChat(authUserEmail);
+  if (!sid || !uid || !textoPersistible(userMessage) || !textoPersistible(assistantMessage)) {
     return;
   }
   const supabase = getSupabaseService();
   const u = userMessage.trim();
   const a = assistantMessage.trim();
-  const { error: e1 } = await supabase.from('chat_messages').insert({
+  const rowBase = {
     session_id: sid,
+    auth_user_id: uid,
+    ...(emailRow ? { user_email: emailRow } : {}),
+  };
+  const { error: e1 } = await supabase.from('chat_messages').insert({
+    ...rowBase,
     role: 'user',
     message: u,
     visible: true,
@@ -79,7 +119,7 @@ export async function appendExchangeToChatHistorial(
     throw new Error(e1.message);
   }
   const { error: e2 } = await supabase.from('chat_messages').insert({
-    session_id: sid,
+    ...rowBase,
     role: 'assistant',
     message: a,
     visible: true,
@@ -94,10 +134,12 @@ export async function appendExchangeToChatHistorial(
 
 export async function listChatHistorialVisible(
   sessionId: string | null,
+  authUserId: string | null,
   limit = CHAT_HISTORY_UI_LIMIT,
 ): Promise<ChatMessageRow[]> {
   const sid = normalizarSessionIdChat(sessionId);
-  if (!sid) {
+  const uid = normalizarAuthUserId(authUserId);
+  if (!sid || !uid) {
     return [];
   }
   const supabase = getSupabaseService();
@@ -106,6 +148,7 @@ export async function listChatHistorialVisible(
     .from('chat_messages')
     .select('id, role, message, created_at')
     .eq('session_id', sid)
+    .eq('auth_user_id', uid)
     .eq('visible', true)
     .in('role', ['user', 'assistant'])
     .order('created_at', { ascending: false })
@@ -134,9 +177,13 @@ export async function listChatHistorialVisible(
 }
 
 /** Oculta mensajes de la sesión (no borra movimientos ni finanzas). */
-export async function ocultarHistorialChatSession(sessionId: string | null): Promise<void> {
+export async function ocultarHistorialChatSession(
+  sessionId: string | null,
+  authUserId: string | null,
+): Promise<void> {
   const sid = normalizarSessionIdChat(sessionId);
-  if (!sid) {
+  const uid = normalizarAuthUserId(authUserId);
+  if (!sid || !uid) {
     return;
   }
   const supabase = getSupabaseService();
@@ -144,6 +191,7 @@ export async function ocultarHistorialChatSession(sessionId: string | null): Pro
     .from('chat_messages')
     .update({ visible: false })
     .eq('session_id', sid)
+    .eq('auth_user_id', uid)
     .eq('visible', true);
 
   if (error) {

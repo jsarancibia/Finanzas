@@ -38,6 +38,45 @@ export function destinoParaRegistro(p: ParsedMovimiento): string {
   return '';
 }
 
+/**
+ * Origen explícito en disponible cuando el usuario ahorra desde una subcuenta (ej. «mercado pago disponible»).
+ * Rellena `origen` como `destinoParaRegistro` para que el RPC descuente esa fila en `cuentas`.
+ */
+export function extraerOrigenDisponibleParaAhorro(raw: string): { banco: string; cuentaProducto: string } | null {
+  const t = raw.trim().normalize('NFC');
+  if (!t) {
+    return null;
+  }
+  const pares: { re: RegExp; banco: string; cuenta: string }[] = [
+    { re: /\bdel\s+dinero\s+de\s+mercado\s+pago\s+disponible\b/i, banco: 'Mercado Pago', cuenta: 'Disponible' },
+    { re: /\bde\s+mercado\s+pago\s+disponible\b/i, banco: 'Mercado Pago', cuenta: 'Disponible' },
+    { re: /\bmercado\s+pago\s+disponible\b/i, banco: 'Mercado Pago', cuenta: 'Disponible' },
+    /** Origen explícito (del/de/desde…); no coincidir con «… en mercado pago para gastar» (destino de asignación). */
+    { re: /\b(?:del|de|desde)\s+mercado\s+pago\s+para\s+gastar\b/i, banco: 'Mercado Pago', cuenta: 'Disponible' },
+    { re: /\bdel\s+dinero\s+de\s+mercado\s+pago\s+para\s+gastar\b/i, banco: 'Mercado Pago', cuenta: 'Disponible' },
+    { re: /\bdel\s+dinero\s+de\s+banco\s+estado\s+disponible\b/i, banco: 'Banco Estado', cuenta: 'Disponible' },
+    { re: /\bbanco\s+estado\s+disponible\b/i, banco: 'Banco Estado', cuenta: 'Disponible' },
+    { re: /\bbanco\s+de\s+chile\s+disponible\b/i, banco: 'Banco de Chile', cuenta: 'Disponible' },
+    { re: /\bdisponible\s+de\s+mercado\s+pago\b/i, banco: 'Mercado Pago', cuenta: 'Disponible' },
+    { re: /\bdisponible\s+de\s+banco\s+estado\b/i, banco: 'Banco Estado', cuenta: 'Disponible' },
+    { re: /\bdisponible\s+en\s+mercado\s+pago\b/i, banco: 'Mercado Pago', cuenta: 'Disponible' },
+    { re: /\bdel\s+dinero\s+disponible\s+en\s+mercado\s+pago\b/i, banco: 'Mercado Pago', cuenta: 'Disponible' },
+  ];
+  for (const { re, banco, cuenta } of pares) {
+    if (re.test(t)) {
+      return { banco, cuentaProducto: cuenta };
+    }
+  }
+  if (
+    /\bcuenta\s*rut\b/i.test(t) &&
+    /\b(disponible|para\s+gastar|del\s+dinero)\b/i.test(t) &&
+    /\bpas(?:a|á|é|e|ar)?\b|\bmuev|\bahorr|\bagreg|\bguard|\bdej[oóeé]/i.test(t)
+  ) {
+    return { banco: 'Banco Estado', cuentaProducto: 'Cuenta RUT' };
+  }
+  return null;
+}
+
 /** Origen del gasto tras «desde …» (sin importar ciclos con parseMessageTraspaso). */
 function mapearOrigenGastoDesdeFrag(frag: string): { banco: string; cuentaProducto: string } | null {
   const s = frag.trim().replace(/\s+/g, ' ');
@@ -205,6 +244,19 @@ function limpiarRestoDetalle(s: string): string {
   return s.replace(/^(de|del|por|para|en)\s+/i, '').trim();
 }
 
+function limpiarBancoDeColaGasto(tail: string): string {
+  const cleaned = tail
+    .replace(/,?\s+del\s+dinero\s+de\s+.+$/i, '')
+    .replace(/,?\s+de\s+la\s+(?:cuenta|plata)\s+de\s+.+$/i, '')
+    .replace(/,?\s+(?:con|de)\s+(?:la\s+)?(?:plata|dinero)\s+de\s+.+$/i, '')
+    .replace(
+      /,?\s+(?:de|del|desde|en)\s+(?:la\s+)?(?:cuenta\s+(?:de\s+)?)?(?:mercado\s+pago|banco\s+(?:de\s+chile|estado|santander|falabella|consorcio)|bancoestado|scotiabank|bci|ita[uú]|security|cuenta\s*rut|efectivo)\b.*$/i,
+      '',
+    )
+    .trim();
+  return cleaned || tail;
+}
+
 /**
  * Parsing por expresiones regulares y montos coloquiales (arquitectura3 — Fase 3).
  */
@@ -219,7 +271,9 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
     /^tengo\s+/i.test(t) &&
     !bloqueaIngresoPorPalabraTengo(t) &&
     !/\btengo\s+(?:un\s+)?ahorro\b/i.test(t) &&
-    !/\btengo\s+ahorrado\b/i.test(t)
+    !/\btengo\s+ahorrado\b/i.test(t) &&
+    !/\bahorro\b/i.test(t) &&
+    !/\ben\s+ahorro\b/i.test(t)
   ) {
     const montoTengo = buscarMontoEnTextoCompleto(t);
     if (montoTengo != null && montoTengo > 0) {
@@ -259,7 +313,8 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
     if (monto === null) {
       return null;
     }
-    const tail = (gasto[3] ?? '').trim();
+    const rawTail = (gasto[3] ?? '').trim();
+    const tail = rawTail ? limpiarBancoDeColaGasto(rawTail) : '';
     const cat = tail ? inferCategoriaGasto(tail) : 'otros';
     const descripcion =
       tail && (cat === 'otros' || tail.split(/\s+/).length > 1) ? tail : '';
@@ -354,18 +409,22 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
   const saque =
     /^(saqué|saque)\s+(.+)$/i.exec(t);
   if (saque) {
-    const ext = extractLeadingMonto(saque[2]);
-    if (ext) {
-      const det = limpiarRestoDetalle(ext.rest) || 'retiro';
-      const cat = inferCategoriaGasto(det);
-      return {
-        tipo: 'gasto',
-        monto: ext.monto,
-        categoria: cat,
-        descripcion: det,
-        origen: null,
-        destino: null,
-      };
+    if (/\by\s+(?:lo\s+)?(?:pas[eéo]|mand[eéo]|transfer[ií]|mov[ií]|deposit[eéo]|llev[eé])\b/i.test(t)) {
+      // Transfer intent — let parseTraspaso handle it
+    } else {
+      const ext = extractLeadingMonto(saque[2]);
+      if (ext) {
+        const det = limpiarRestoDetalle(ext.rest) || 'retiro';
+        const cat = inferCategoriaGasto(det);
+        return {
+          tipo: 'gasto',
+          monto: ext.monto,
+          categoria: cat,
+          descripcion: det,
+          origen: null,
+          destino: null,
+        };
+      }
     }
   }
 
@@ -439,8 +498,8 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
     const head = en ? rest.slice(0, en.index).trim() : rest;
     const ext = extractLeadingMonto(head);
     if (ext) {
-      const tail = en ? en[1].trim() : limpiarRestoDetalle(ext.rest);
-      const combined = tail || ext.rest;
+      const rawTail2 = en ? en[1].trim() : limpiarRestoDetalle(ext.rest);
+      const combined = rawTail2 ? limpiarBancoDeColaGasto(rawTail2) : ext.rest;
       const cat = combined ? inferCategoriaGasto(combined) : 'otros';
       const descripcion =
         combined &&

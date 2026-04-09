@@ -6,7 +6,10 @@ import {
   obtenerResumenDashboard,
 } from '../services/resumenCuentas.js';
 
-export async function handleResumenCuentasGet(): Promise<ResumenDashboard> {
+export async function handleResumenCuentasGet(authUserId: string | null): Promise<ResumenDashboard> {
   const reglas = loadReglas();
-  return obtenerResumenDashboard(reglas);
+  if (!authUserId?.trim()) {
+    throw new Error('Se requiere usuario autenticado para el resumen.');
+  }
+  return obtenerResumenDashboard(reglas, authUserId.trim());
 }

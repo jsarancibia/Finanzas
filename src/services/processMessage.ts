@@ -16,6 +16,7 @@ import {
 } from './parseMessageTraspaso.js';
 import { tryCompletarGastoPendienteConCuenta } from './gastoCompletarRespuestaCuenta.js';
 import { resolverGastoCuentaAntesDeRpc } from './gastoRequiereCuenta.js';
+import { corregirTypos } from './corregirTypos.js';
 
 export type ProcessOk = {
   ok: true;
@@ -62,12 +63,19 @@ function validateParsed(p: ParsedMovimiento): string | null {
   return null;
 }
 
-async function rpcAplicarMovimiento(parsed: ParsedMovimiento): Promise<{
+async function rpcAplicarMovimiento(
+  parsed: ParsedMovimiento,
+  authUserId: string,
+): Promise<{
   ok: true;
   movimiento_id: string;
 } | { ok: false; error: string; phase: 'rpc' | 'resultado' }> {
+  if (!authUserId) {
+    return { ok: false, phase: 'rpc', error: 'sin_usuario_autenticado' };
+  }
   const pDestino = destinoParaRegistro(parsed);
   const { data, error } = await getSupabaseService().rpc('aplicar_movimiento', {
+    p_auth_user_id: authUserId,
     p_tipo: parsed.tipo,
     p_monto: parsed.monto,
     p_categoria: parsed.categoria,
@@ -95,12 +103,19 @@ async function rpcAplicarMovimiento(parsed: ParsedMovimiento): Promise<{
   return { ok: false, phase: 'resultado', error: err };
 }
 
-async function ejecutarAsignacionDesdeSinCuenta(text: string): Promise<ProcessResult | null> {
+async function ejecutarAsignacionDesdeSinCuenta(
+  text: string,
+  authUserId: string,
+): Promise<ProcessResult | null> {
   const asg = parseAsignarDesdeDisponibleSinCuenta(text);
   if (!asg) {
     return null;
   }
+  if (!authUserId) {
+    return { ok: false, phase: 'rpc', error: 'sin_usuario_autenticado' };
+  }
   const { data, error } = await getSupabaseService().rpc('asignar_desde_disponible_sin_cuenta', {
+    p_auth_user_id: authUserId,
     p_monto: asg.monto,
     p_banco: asg.banco,
     p_cuenta_producto: asg.cuentaProducto,
@@ -179,7 +194,10 @@ async function ejecutarAsignacionDesdeSinCuenta(text: string): Promise<ProcessRe
   };
 }
 
-async function ejecutarTraspaso(text: string): Promise<ProcessResult | null> {
+async function ejecutarTraspaso(
+  text: string,
+  authUserId: string,
+): Promise<ProcessResult | null> {
   const tr = parseTraspaso(text);
   if (!tr) {
     return null;
@@ -196,7 +214,7 @@ async function ejecutarTraspaso(text: string): Promise<ProcessResult | null> {
     return { ok: false, phase: 'parse', error: v2, parsed: ingresoP };
   }
 
-  const r1 = await rpcAplicarMovimiento(gastoP);
+  const r1 = await rpcAplicarMovimiento(gastoP, authUserId);
   if (!r1.ok) {
     return {
       ok: false,
@@ -206,7 +224,7 @@ async function ejecutarTraspaso(text: string): Promise<ProcessResult | null> {
     };
   }
 
-  const r2 = await rpcAplicarMovimiento(ingresoP);
+  const r2 = await rpcAplicarMovimiento(ingresoP, authUserId);
   if (!r2.ok) {
     return {
       ok: false,
@@ -226,26 +244,31 @@ async function ejecutarTraspaso(text: string): Promise<ProcessResult | null> {
   };
 }
 
+export type ProcessMessageOptions = {
+  /** Obligatorio para RPC y lecturas financieras por usuario (JWT). */
+  authUserId: string;
+  parseWithLlm?: (text: string) => Promise<ParsedMovimiento | null>;
+};
+
 /**
  * Procesa un mensaje: **asignación desde disponible/sin cuenta (arquitectura7) → regex → traspaso → flexible → LLM**.
  * Consejos/saludos van en `handleChatPost` / CLI.
  */
 export async function processMessage(
   raw: string,
-  options?: {
-    parseWithLlm?: (text: string) => Promise<ParsedMovimiento | null>;
-  },
+  options: ProcessMessageOptions,
 ): Promise<ProcessResult> {
-  const text = raw.trim().normalize('NFC');
+  const text = corregirTypos(raw.trim().normalize('NFC'));
+  const authUserId = options.authUserId.trim();
 
-  const asgPrimero = await ejecutarAsignacionDesdeSinCuenta(text);
+  const asgPrimero = await ejecutarAsignacionDesdeSinCuenta(text, authUserId);
   if (asgPrimero) {
     return asgPrimero;
   }
 
   const gastoCompletado = tryCompletarGastoPendienteConCuenta(text);
   if (gastoCompletado) {
-    const gastoRule = await resolverGastoCuentaAntesDeRpc(gastoCompletado);
+    const gastoRule = await resolverGastoCuentaAntesDeRpc(gastoCompletado, authUserId);
     if (gastoRule.accion === 'preguntar') {
       return { ok: true, kind: 'aclaracion_monto', texto: gastoRule.texto };
     }
@@ -254,7 +277,7 @@ export async function processMessage(
     if (vg) {
       return { ok: false, phase: 'parse', error: vg, parsed: parsedG };
     }
-    const rpcG = await rpcAplicarMovimiento(parsedG);
+    const rpcG = await rpcAplicarMovimiento(parsedG, authUserId);
     if (!rpcG.ok) {
       return {
         ok: false,
@@ -273,14 +296,14 @@ export async function processMessage(
   let parsed: ParsedMovimiento | null = parseMessageRegex(text);
 
   if (!parsed) {
-    const trRes = await ejecutarTraspaso(text);
+    const trRes = await ejecutarTraspaso(text, authUserId);
     if (trRes) {
       return trRes;
     }
     parsed = parseMessageFlexible(text);
   }
 
-  if (!parsed && options?.parseWithLlm) {
+  if (!parsed && options.parseWithLlm) {
     parsed = await options.parseWithLlm(text);
   }
 
@@ -295,13 +318,13 @@ export async function processMessage(
     return { ok: false, phase: 'parse', error: v, parsed };
   }
 
-  const gastoCuenta = await resolverGastoCuentaAntesDeRpc(parsed);
+  const gastoCuenta = await resolverGastoCuentaAntesDeRpc(parsed, authUserId);
   if (gastoCuenta.accion === 'preguntar') {
     return { ok: true, kind: 'aclaracion_monto', texto: gastoCuenta.texto };
   }
   parsed = gastoCuenta.parsed;
 
-  const rpc = await rpcAplicarMovimiento(parsed);
+  const rpc = await rpcAplicarMovimiento(parsed, authUserId);
   if (!rpc.ok) {
     return {
       ok: false,

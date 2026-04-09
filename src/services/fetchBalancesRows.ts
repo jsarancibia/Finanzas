@@ -19,18 +19,22 @@ function esErrorColumnaSinCuentaInexistente(message: string): boolean {
  * `saldo_disponible_sin_cuenta`), repite el SELECT solo con las columnas clásicas;
  * el agregado deja ese saldo en 0 y el dashboard sigue usando `huecoVsTotal` para pendiente.
  */
-export async function fetchAllBalanceRows(): Promise<BalanceRowDb[]> {
+export async function fetchAllBalanceRows(authUserId: string): Promise<BalanceRowDb[]> {
   const supabase = getSupabaseService();
   const full = await supabase
     .from('balances')
-    .select('saldo_disponible, saldo_ahorrado, saldo_disponible_sin_cuenta');
+    .select('saldo_disponible, saldo_ahorrado, saldo_disponible_sin_cuenta')
+    .eq('auth_user_id', authUserId);
 
   if (!full.error) {
     return (full.data ?? []) as BalanceRowDb[];
   }
 
   if (esErrorColumnaSinCuentaInexistente(full.error.message)) {
-    const partial = await supabase.from('balances').select('saldo_disponible, saldo_ahorrado');
+    const partial = await supabase
+      .from('balances')
+      .select('saldo_disponible, saldo_ahorrado')
+      .eq('auth_user_id', authUserId);
     if (partial.error) {
       throw new Error(partial.error.message);
     }

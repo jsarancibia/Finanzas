@@ -4,3 +4,7 @@ dist/
 *.log
 .DS_Store
 arquitectura.md
+.env.e2e
+test-results/
+playwright-report/
+playwright/.cache/
