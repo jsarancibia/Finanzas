@@ -507,7 +507,7 @@ export async function runApp({ getAuthHeaders, authUserId }) {
         async function inicializarChatUI() {
           await cargarHistorialDesdeServidor();
           if (logEl.children.length === 0) {
-            appendSystem("Listo. Escribe un mensaje y pulsa Enviar.");
+            appendSystem("Empieza registrando un ingreso (ej: recibí mi sueldo 560.000). Luego puedes distribuirlo entre tus cuentas y registrar gastos.");
           }
           input.focus();
           void refreshResumen();
