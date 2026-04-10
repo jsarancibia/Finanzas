@@ -331,7 +331,12 @@ export function parseAsignarDesdeDisponibleSinCuenta(text: string): ParsedAsigna
     return null;
   }
 
-  if (/\ben\s+ahorro\b/i.test(raw) || /\bahorro\s+de\b/i.test(raw)) {
+  if (
+    /\ben\s+ahorro\b/i.test(raw) ||
+    /\bahorro\s+de\b/i.test(raw) ||
+    /\bde\s+ahorro\b/i.test(raw) ||
+    /\bun\s+ahorro\b/i.test(raw)
+  ) {
     return null;
   }
 

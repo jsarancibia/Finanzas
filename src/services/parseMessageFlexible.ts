@@ -12,6 +12,7 @@ import {
 
 const BANK_ALIASES: { pattern: RegExp; nombre: string }[] = [
   { pattern: /\bmercado\s+pago\b/i, nombre: 'Mercado Pago' },
+  { pattern: /\bmercado\s+libre\b/i, nombre: 'Mercado Pago' },
   { pattern: /\bbanco\s+de\s+chile\b/i, nombre: 'Banco de Chile' },
   {
     pattern: /\bbanco\s+estado\b|\bbancoestado\b|\bbando\s+estado\b|\bbandestado\b/i,
@@ -85,8 +86,9 @@ function extraerSubcuentaTrasBanco(raw: string, banco: string | null): string | 
     const before = raw.slice(0, last.index).trim();
     const subBefore = /\ben\s+(\S+(?:\s+\S+)?)\s*$/i.exec(before);
     if (subBefore) {
-      const label = subBefore[1].trim().replace(/\s+/g, ' ');
-      if (label.length > 0 && !/^\d/.test(label) && !/^ahorro$/i.test(label)) {
+      let label = subBefore[1].trim().replace(/\s+/g, ' ');
+      label = label.replace(/^ahorro[s]?\s+/i, '').trim();
+      if (label.length > 0 && !/^\d/.test(label) && !/^ahorro[s]?$/i.test(label)) {
         return label.charAt(0).toUpperCase() + label.slice(1);
       }
     }
@@ -117,6 +119,9 @@ function detectTipoFlex(lower: string): MovimientoTipo | null {
   }
   if (/\btengo\s+un\s+ahorro\s+de\b|\btengo\s+ahorro\s+de\b/.test(lower)) {
     return 'ahorro';
+  }
+  if (/\btengo\s+(?:un\s+)?gasto\b/.test(lower) && /\d/.test(lower)) {
+    return 'gasto';
   }
   if (
     /\bagregaré\b|\bagregare\b|\bcolocaré\b|\bcolocare\b|\bagrego\s+un\s+ahorro\s+de\b|\bagregar\s+un\s+ahorro\s+de\b/.test(
@@ -154,6 +159,9 @@ function detectTipoFlex(lower: string): MovimientoTipo | null {
       /\btraspasa(?:r)?\b/.test(lower) ||
       /\breparte(?:r)?\b/.test(lower)) &&
     /\s+(?:a|en|al)\s+\S/.test(lower);
+  if (senalDineroExistente && /\bpara\s+gastar\s+en\s+\S/.test(lower) && !pareceMoverAParaGastar) {
+    return 'gasto';
+  }
   if (!senalDineroExistente && /\bpara\s+gastar\b/.test(lower) && !pareceMoverAParaGastar) {
     return 'ingreso';
   }
@@ -161,6 +169,7 @@ function detectTipoFlex(lower: string): MovimientoTipo | null {
     !senalDineroExistente &&
     /\btengo\b/.test(lower) &&
     /\d/.test(lower) &&
+    !/\btengo\s+(?:un\s+)?gasto\b/.test(lower) &&
     !/\btengo\s+(?:un\s+)?ahorro\b/.test(lower) &&
     !/\btengo\s+ahorrado\b/.test(lower) &&
     !/\bahorro\b/.test(lower) &&

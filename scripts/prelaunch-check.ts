@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { bloqueaIngresoPorPalabraTengo, tieneSenalOrigenDineroExistente } from '../src/services/contextoNoEsIngresoNuevo.js';
 import { parseAsignarDesdeDisponibleSinCuenta } from '../src/services/parseMessageDisponibleSinCuenta.js';
 import { detectBanco, enriquecerBancoYProducto, parseMessageFlexible } from '../src/services/parseMessageFlexible.js';
+import { inferCategoriaGasto } from '../src/services/categoriasMovimiento.js';
 import { parseMessageRegex } from '../src/services/parseMessage.js';
 import { parseTraspaso, mapExtremoTraspaso } from '../src/services/parseMessageTraspaso.js';
 import { corregirTypos } from '../src/services/corregirTypos.js';
@@ -111,6 +112,23 @@ ok('gasté 15000 en transporte → gasto', () => {
   assert.equal(p!.monto, 15_000);
 });
 
+ok('tengo un gasto de 14000 en poleron del dinero de mercado libre → gasto (no ingreso)', () => {
+  const t = 'tengo un gasto de 14000 en poleron del dinero de mercado libre';
+  const reg = parseMessageRegex(t);
+  assert.equal(reg, null, 'regex no debe ser ingreso por «tengo»');
+  const p = parseMessageFlexible(t);
+  assert.ok(p);
+  assert.equal(p!.tipo, 'gasto');
+  assert.equal(p!.monto, 14_000);
+  assert.equal(p!.categoria, 'ropa');
+  assert.equal(p!.banco, 'Mercado Pago');
+});
+
+ok('inferCategoriaGasto: poleron y mercado libre (compra) → ropa / otros', () => {
+  assert.equal(inferCategoriaGasto('poleron'), 'ropa');
+  assert.equal(inferCategoriaGasto('un libro en mercado libre'), 'otros');
+});
+
 ok('ahorré 200000 en fondo mutuo → ahorro (regex)', () => {
   const p = parseMessageRegex('ahorré 200000 en fondo mutuo banco estado');
   assert.ok(p);
@@ -196,12 +214,13 @@ ok('del dinero disponible tengo 9601 en mercado pago para gastar → asignación
 
 // === GASTOS: categoría limpia sin banco ===
 
-ok('gasto de 70000 en zapatillas del dinero de mercado pago → categoría limpia', () => {
+ok('gasto de 70000 en zapatillas del dinero de mercado pago → ropa + sin banco en cola', () => {
   const p = parseMessageFlexible('hice un gasto de 70000 en zapatillas del dinero de mercado pago');
   assert.ok(p);
   assert.equal(p!.tipo, 'gasto');
   assert.equal(p!.monto, 70_000);
-  assert.equal(p!.descripcion, 'zapatillas');
+  assert.equal(p!.categoria, 'ropa');
+  assert.equal(p!.descripcion, '');
   assert.equal(p!.banco, 'Mercado Pago');
 });
 
@@ -265,6 +284,87 @@ ok('MP disponible → pasa a cuenta rut: traspaso (no sin cuenta)', () => {
   assert.equal(tr!.origenCuenta, 'Disponible');
   assert.equal(tr!.destinoBanco, 'Banco Estado');
   assert.equal(tr!.destinoCuenta, 'Cuenta RUT');
+});
+
+// === FIX: "de ahorro" no debe ser asignación sin cuenta ===
+
+ok('del dinero disponible, tengo 50000 de ahorro en reserva mercado libre → NO asignación', () => {
+  const t = 'del dinero disponible, tengo 50000 de ahorro en reserva mercado libre';
+  assert.equal(parseAsignarDesdeDisponibleSinCuenta(t), null, 'NO debe ser asignación, es ahorro');
+});
+
+ok('del dinero disponible, tengo 50000 de ahorro en reserva mercado libre → ahorro flexible', () => {
+  const t = 'del dinero disponible, tengo 50000 de ahorro en reserva mercado libre';
+  const p = parseMessageFlexible(t);
+  assert.ok(p, 'flexible debe parsear');
+  assert.equal(p!.tipo, 'ahorro');
+  assert.equal(p!.monto, 50_000);
+  assert.equal(p!.banco, 'Mercado Pago', '"mercado libre" se mapea a Mercado Pago');
+});
+
+ok('del dinero disponible, tengo 50000 de ahorro en reserva mercado libre → enriquecido con Reserva', () => {
+  const t = 'del dinero disponible, tengo 50000 de ahorro en reserva mercado libre';
+  const p0 = parseMessageFlexible(t);
+  assert.ok(p0);
+  const p = enriquecerBancoYProducto(t, p0!);
+  assert.equal(p.banco, 'Mercado Pago');
+  assert.ok(
+    p.cuentaProducto && /reserva/i.test(p.cuentaProducto),
+    `cuentaProducto debe contener "reserva", got: ${p.cuentaProducto}`,
+  );
+});
+
+ok('del dinero disponible, tengo 50000 en ahorro reservas mercado libre → NO asignación', () => {
+  const t = 'del dinero disponible, tengo 50000 en ahorro reservas mercado libre';
+  assert.equal(parseAsignarDesdeDisponibleSinCuenta(t), null, 'en ahorro → bloqueado');
+});
+
+ok('del dinero disponible, tengo 50000 en ahorro reservas mercado libre → ahorro flexible', () => {
+  const t = 'del dinero disponible, tengo 50000 en ahorro reservas mercado libre';
+  const p = parseMessageFlexible(t);
+  assert.ok(p, 'flexible debe parsear');
+  assert.equal(p!.tipo, 'ahorro');
+  assert.equal(p!.monto, 50_000);
+  assert.equal(p!.banco, 'Mercado Pago');
+});
+
+ok('tengo un ahorro en reserva mercado pago → NO asignación', () => {
+  const t = 'del dinero disponible, tengo un ahorro de 80000 en reserva mercado pago';
+  assert.equal(parseAsignarDesdeDisponibleSinCuenta(t), null);
+});
+
+// === FIX: "para gastar en mercado libre" con señal dinero existente → gasto ===
+
+ok('del dinero disponible, tengo 79698 para gastar en mercado libre → gasto flexible', () => {
+  const t = 'del dinero disponible, tengo 79698 para gastar en mercado libre';
+  assert.equal(parseAsignarDesdeDisponibleSinCuenta(t), null, 'NO debe ser asignación');
+  const p = parseMessageFlexible(t);
+  assert.ok(p, 'flexible debe parsear');
+  assert.equal(p!.tipo, 'gasto');
+  assert.equal(p!.monto, 79_698);
+});
+
+// === Mercado Libre detectado como banco (alias de Mercado Pago) ===
+
+ok('detectBanco: mercado libre → Mercado Pago', () => {
+  assert.equal(detectBanco('ahorro en mercado libre'), 'Mercado Pago');
+});
+
+ok('mapExtremoTraspaso: reserva mercado libre → Mercado Pago · Reserva', () => {
+  const m = mapExtremoTraspaso('reserva mercado libre');
+  assert.ok(m);
+  assert.equal(m!.banco, 'Mercado Pago');
+  assert.equal(m!.cuenta, 'Reserva');
+});
+
+// === Tests existentes siguen pasando ===
+
+ok('del dinero disponible tengo 9601 en mercado pago para gastar → sigue siendo asignación', () => {
+  const t = 'del dinero disponible, tengo 9601 en mercado pago para gastar';
+  const p = parseAsignarDesdeDisponibleSinCuenta(t);
+  assert.ok(p, 'debe ser asignación (no afectado por fixes)');
+  assert.equal(p!.monto, 9601);
+  assert.equal(p!.banco, 'Mercado Pago');
 });
 
 console.log('\nTodas las comprobaciones pasaron.');

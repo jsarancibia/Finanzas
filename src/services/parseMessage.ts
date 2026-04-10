@@ -250,7 +250,7 @@ function limpiarBancoDeColaGasto(tail: string): string {
     .replace(/,?\s+de\s+la\s+(?:cuenta|plata)\s+de\s+.+$/i, '')
     .replace(/,?\s+(?:con|de)\s+(?:la\s+)?(?:plata|dinero)\s+de\s+.+$/i, '')
     .replace(
-      /,?\s+(?:de|del|desde|en)\s+(?:la\s+)?(?:cuenta\s+(?:de\s+)?)?(?:mercado\s+pago|banco\s+(?:de\s+chile|estado|santander|falabella|consorcio)|bancoestado|scotiabank|bci|ita[uú]|security|cuenta\s*rut|efectivo)\b.*$/i,
+      /,?\s+(?:de|del|desde|en)\s+(?:la\s+)?(?:cuenta\s+(?:de\s+)?)?(?:mercado\s+(?:pago|libre)|banco\s+(?:de\s+chile|estado|santander|falabella|consorcio)|bancoestado|scotiabank|bci|ita[uú]|security|cuenta\s*rut|efectivo)\b.*$/i,
       '',
     )
     .trim();
@@ -270,6 +270,7 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
   if (
     /^tengo\s+/i.test(t) &&
     !bloqueaIngresoPorPalabraTengo(t) &&
+    !/\btengo\s+(?:un\s+)?gasto\b/i.test(t) &&
     !/\btengo\s+(?:un\s+)?ahorro\b/i.test(t) &&
     !/\btengo\s+ahorrado\b/i.test(t) &&
     !/\bahorro\b/i.test(t) &&

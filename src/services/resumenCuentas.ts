@@ -25,6 +25,31 @@ type LineaAhorro = {
   monto_ahorrado: number;
 };
 
+/** Etiqueta en panel: si la categoría es genérica «otros», mostrar la descripción cuando exista. */
+function etiquetaGastoResumen(categoria: string, descripcion: string): string {
+  const cat = categoria.trim();
+  const desc = descripcion.trim();
+  if (cat && cat !== 'otros') {
+    return cat;
+  }
+  if (desc) {
+    return desc;
+  }
+  return cat || 'Gasto';
+}
+
+function claveAgrupacionGasto(categoria: string, descripcion: string): string {
+  const cat = categoria.trim();
+  const desc = descripcion.trim();
+  if (cat && cat !== 'otros') {
+    return cat;
+  }
+  if (desc) {
+    return desc;
+  }
+  return cat || 'Sin categoría';
+}
+
 type GrupoPorBanco = {
   banco: string;
   total: number;
@@ -324,7 +349,7 @@ export async function obtenerResumenDashboard(
     }
     const cat = typeof row.categoria === 'string' ? row.categoria.trim() : '';
     const desc = typeof row.descripcion === 'string' ? row.descripcion.trim() : '';
-    const etiqueta = cat || desc || 'Gasto';
+    const etiqueta = etiquetaGastoResumen(cat, desc);
     const fecha =
       row.fecha != null && String(row.fecha).trim() !== '' ? String(row.fecha) : null;
     gastos_ultimos.push({ etiqueta, monto: m, fecha });
@@ -338,7 +363,8 @@ export async function obtenerResumenDashboard(
       continue;
     }
     const catRaw = typeof r.categoria === 'string' ? r.categoria.trim() : '';
-    const cat = catRaw || 'Sin categoría';
+    const descRaw = typeof r.descripcion === 'string' ? r.descripcion.trim() : '';
+    const cat = claveAgrupacionGasto(catRaw, descRaw);
     byCat.set(cat, (byCat.get(cat) ?? 0) + m);
   }
   const gastos_por_categoria: LineaGastoCategoria[] = [...byCat.entries()]
