@@ -82,7 +82,12 @@ function extraerDestinoAsignacion(t: string): string | null {
   const sinParaAsignar = t
     .replace(/\bpara\s+asignar\b/gi, '__par_asignar__')
     .replace(/\bpara\s+repartir\b/gi, '__par_repartir__');
-  const sinPara = sinParaAsignar.split(/\s+para\s+/i)[0].trim();
+  /** «para gastar a X» / «para gastar en X» → eliminar «para gastar» pero conservar destino. */
+  const sinParaGastar = sinParaAsignar
+    .replace(/\bpara\s+gast(?:ar|o)\s+(?=(?:a|en|al)\s+)/gi, '');
+  const sinPara = sinParaGastar.includes(' para ')
+    ? sinParaGastar.split(/\s+para\s+/i)[0].trim()
+    : sinParaGastar.trim();
   const res = [
     /\s+a\s+(?:la\s+)?(.+)$/iu,
     /\s+en\s+(?:la\s+)?(.+)$/iu,
@@ -93,7 +98,6 @@ function extraerDestinoAsignacion(t: string): string | null {
     if (m) {
       const frag = limpiarColaOrigenEnDestino(m[1].trim().replace(/[.!?]+$/u, ''));
       if (frag.length > 0) {
-        // «dinero a repartir» / «… a asignar»: la primera « a » no es destino de cuenta.
         if (re.source.startsWith('\\s+a\\s+') && /^(repartir|asignar)\b/i.test(frag)) {
           continue;
         }
@@ -107,6 +111,7 @@ function extraerDestinoAsignacion(t: string): string | null {
 /**
  * «pasa dinero a mercado pago para gastar 5000» / «pasa 5000 a cuenta rut para gastar»:
  * reparto desde pendiente hacia cuenta disponible, no ingreso nuevo (evita `para gastar` → ingreso en flexible).
+ * También: «agrega 54704 dinero para gastar a mercado pago» (destino DESPUÉS de «para gastar»).
  */
 function parseVerboHaciaCuentaParaGastar(t: string): ParsedAsignacionSinCuenta | null {
   const lower = t.toLowerCase();
@@ -120,19 +125,28 @@ function parseVerboHaciaCuentaParaGastar(t: string): ParsedAsignacionSinCuenta |
   if (monto == null || monto <= 0) {
     return null;
   }
+
   const work = t.replace(/\s+para\s+gast(?:ar|o)\b[\s\S]*$/iu, '').trim();
-  if (!work) {
-    return null;
+  if (work) {
+    const destRaw = extraerDestinoAsignacion(work);
+    if (destRaw) {
+      const mapped = mapExtremoTraspaso(destRaw);
+      if (mapped) {
+        return { monto, banco: mapped.banco, cuentaProducto: mapped.cuenta };
+      }
+    }
   }
-  const destRaw = extraerDestinoAsignacion(work);
-  if (!destRaw) {
-    return null;
+
+  const afterMatch = /\bpara\s+gast(?:ar|o)\s+(?:a|en|al)\s+(?:la\s+)?(.+)$/iu.exec(t);
+  if (afterMatch) {
+    const destFrag = afterMatch[1].trim().replace(/[.!?]+$/u, '');
+    const mapped = mapExtremoTraspaso(destFrag);
+    if (mapped) {
+      return { monto, banco: mapped.banco, cuentaProducto: mapped.cuenta };
+    }
   }
-  const mapped = mapExtremoTraspaso(destRaw);
-  if (!mapped) {
-    return null;
-  }
-  return { monto, banco: mapped.banco, cuentaProducto: mapped.cuenta };
+
+  return null;
 }
 
 /**

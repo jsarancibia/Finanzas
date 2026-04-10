@@ -70,7 +70,8 @@ export function extraerOrigenDisponibleParaAhorro(raw: string): { banco: string;
   if (
     /\bcuenta\s*rut\b/i.test(t) &&
     /\b(disponible|para\s+gastar|del\s+dinero)\b/i.test(t) &&
-    /\bpas(?:a|á|é|e|ar)?\b|\bmuev|\bahorr|\bagreg|\bguard|\bdej[oóeé]/i.test(t)
+    /\bpas(?:a|á|é|e|ar)?\b|\bmuev|\bahorr|\bagreg|\bguard|\bdej[oóeé]/i.test(t) &&
+    !/\b(?:a|en)\s+(?:la\s+)?cuenta\s*rut\b/i.test(t)
   ) {
     return { banco: 'Banco Estado', cuentaProducto: 'Cuenta RUT' };
   }
@@ -131,7 +132,7 @@ const WORD_TO_INT: Record<string, number> = {
  * Interpreta montos tipo CLP: quita separadores de miles (.) y usa coma como decimal si aplica.
  */
 export function parseMonto(raw: string): number | null {
-  const compact = raw.replace(/\s/g, '');
+  const compact = raw.replace(/\s/g, '').replace(/\$/g, '');
   const normalized = compact.includes(',')
     ? compact.replace(/\./g, '').replace(',', '.')
     : compact.replace(/\./g, '');
@@ -151,7 +152,7 @@ function wordToInt(w: string): number | undefined {
  * Un fragmento que representa solo el monto (ej. "100 mil", "20k", "cien lucas").
  */
 export function parseFragmentoMonto(raw: string): number | null {
-  const t = raw.trim().toLowerCase().replace(/\s+/g, ' ');
+  const t = raw.trim().toLowerCase().replace(/\s+/g, ' ').replace(/^\$\s*/, '');
   if (!t) {
     return null;
   }
@@ -290,7 +291,7 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
   }
 
   const ingreso =
-    /^(gané|gane|gano|ganó)\s+([\d][\d.,]*)(?:\s+(.+))?$/i.exec(t);
+    /^(gané|gane|gano|ganó)\s+\$?([\d][\d.,]*)(?:\s+(.+))?$/i.exec(t);
   if (ingreso) {
     const monto = parseMonto(ingreso[2]);
     if (monto === null) {
@@ -308,7 +309,7 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
   }
 
   const gasto =
-    /^(gasté|gaste|gasto)\s+([\d][\d.,]*)(?:\s+en\s+(.+))?$/i.exec(t);
+    /^(gasté|gaste|gasto)\s+\$?([\d][\d.,]*)(?:\s+en\s+(.+))?$/i.exec(t);
   if (gasto) {
     const monto = parseMonto(gasto[2]);
     if (monto === null) {
@@ -330,7 +331,7 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
   }
 
   const ahorro =
-    /^(ahorra|ahorraré|ahorrare|ahorrar|ahorre|ahorré)\s+([\d][\d.,]*)(?:\s+en\s+(.+))?$/i.exec(
+    /^(ahorra|ahorraré|ahorrare|ahorrar|ahorre|ahorré)\s+\$?([\d][\d.,]*)(?:\s+en\s+(.+))?$/i.exec(
       t,
     );
   if (ahorro) {
