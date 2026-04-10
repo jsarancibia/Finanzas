@@ -152,12 +152,15 @@ function detectTipoFlex(lower: string): MovimientoTipo | null {
   }
   const pareceMoverAParaGastar =
     /\bpara\s+gastar\b/.test(lower) &&
-    (/\bpasa(?:r)?\b/.test(lower) ||
+    (/\bpasa(?:r|le)?\b/.test(lower) ||
       /\bmueve(?:r)?\b/.test(lower) ||
       /\basigna(?:r)?\b/.test(lower) ||
       /\bdeja(?:r|me|mos)?\b|\bdejá\b/.test(lower) ||
       /\btraspasa(?:r)?\b/.test(lower) ||
-      /\breparte(?:r)?\b/.test(lower)) &&
+      /\breparte(?:r)?\b/.test(lower) ||
+      /\bagrega(?:r|le)?\b/.test(lower) ||
+      /\bmete(?:r|le)?\b/.test(lower) ||
+      /\bpon(?:er|le|ga)?\b/.test(lower)) &&
     /\s+(?:a|en|al)\s+\S/.test(lower);
   if (senalDineroExistente && /\bpara\s+gastar\s+en\s+\S/.test(lower) && !pareceMoverAParaGastar) {
     return 'gasto';

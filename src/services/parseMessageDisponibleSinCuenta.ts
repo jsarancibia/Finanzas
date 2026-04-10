@@ -33,7 +33,7 @@ function tieneVerboAsignacion(t: string): boolean {
   if (/\basigna(?:r)?\b/.test(lower)) {
     return true;
   }
-  if (/\bpasa(?:r)?\b(?!\s+que\b)/.test(lower)) {
+  if (/\bpasa(?:r|le)?\b(?!\s+que\b)/.test(lower)) {
     return true;
   }
   if (/\bmueve(?:r)?\b/.test(lower)) {
@@ -49,6 +49,15 @@ function tieneVerboAsignacion(t: string): boolean {
     return true;
   }
   if (/\baparta(?:r)?\b/.test(lower)) {
+    return true;
+  }
+  if (/\bagrega(?:r|le)?\b/.test(lower)) {
+    return true;
+  }
+  if (/\bmete(?:r|le)?\b/.test(lower)) {
+    return true;
+  }
+  if (/\bpon(?:er|le|ga)?\b/.test(lower)) {
     return true;
   }
   if (/\btengo\b/.test(lower) && tieneSenalOrigenDineroExistente(t)) {
@@ -131,7 +140,7 @@ function parseVerboHaciaCuentaParaGastar(t: string): ParsedAsignacionSinCuenta |
  */
 function parseMontoOperacionTrasDeLos(t: string): number | null {
   const m =
-    /\bde\s+(?:los|las)\s+(.+?)\s+(?:asigna|asignar|pasa|pasar|deja|dejá|dejar|mueve|mover|traspasa|traspasar|reparte|repartir)\s+(.+)$/iu.exec(
+    /\bde\s+(?:los|las)\s+(.+?)\s+(?:asigna|asignar|pasa|pasar|deja|dejá|dejar|mueve|mover|traspasa|traspasar|reparte|repartir|agrega|agregar|mete|meter|pon|poner)\s+(.+)$/iu.exec(
       t.trim(),
     );
   if (!m) {
@@ -175,6 +184,47 @@ function parseMontoAntesDelDisponibleHaciaA(t: string): ParsedAsignacionSinCuent
 }
 
 /**
+ * Verbo de asignación/movimiento al inicio del mensaje (imperativo directo).
+ * Cubre: agrega, pasa, pasale, mete, metele, pon, ponle, asigna, mueve, deja, traspasa, reparte, separa, aparta.
+ * Acepta prefijos de cortesía opcionales (por favor, porfa, oye, dale, ya, ok).
+ */
+const RE_VERBO_ASIGNACION_INICIO =
+  /^(?:(?:por\s+favor|porfa|oye|dale|ya|ok)\s*[,.]?\s*)?(?:agrega(?:r|le)?|pasa(?:r|le)?|mete(?:r|le)?|pon(?:er|le|ga)?|asigna(?:r)?|mueve|mover|deja(?:r)?|traspasa(?:r)?|reparte|repartir|separa(?:r)?|aparta(?:r)?)\s+/i;
+
+/**
+ * Verbo directo + monto + destino conocido → asignación desde disponible.
+ * NO requiere mención explícita de «disponible» / «dinero a repartir».
+ * Salta traspasos (de/desde CUENTA_CONOCIDA a CUENTA).
+ */
+function parseVerboDirectoHaciaCuenta(t: string): ParsedAsignacionSinCuenta | null {
+  if (!RE_VERBO_ASIGNACION_INICIO.test(t.trim())) {
+    return null;
+  }
+
+  const tm = /\b(?:de|desde)\s+(.+?)\s+(?:a|al)\s+/i.exec(t);
+  if (tm && mapExtremoTraspaso(tm[1].trim())) {
+    return null;
+  }
+
+  const monto = buscarMontoEnTextoCompleto(t);
+  if (monto == null || monto <= 0) {
+    return null;
+  }
+
+  const destRaw = extraerDestinoAsignacion(t);
+  if (!destRaw) {
+    return null;
+  }
+
+  const mapped = mapExtremoTraspaso(destRaw);
+  if (!mapped) {
+    return null;
+  }
+
+  return { monto, banco: mapped.banco, cuentaProducto: mapped.cuenta };
+}
+
+/**
  * Parser ampliado arquitectura7: origen disponible/pendiente + verbo de reparto + destino.
  * No cubre «deja … disponible … en …» (lo resuelve parseDejarDisponibleEnCuenta).
  */
@@ -208,7 +258,7 @@ function parseAsignacionDesdeDisponibleAmplio(raw: string): ParsedAsignacionSinC
   }
 
   const verboMontoDelA =
-    /^(?:asigna|asignar|pasa|pasar|deja|dejá|dejar|mueve|mover|traspasa|traspasar|reparte|repartir)\s+(.+?)\s+(del\s+dinero\s+disponible|del\s+disponible)\s+a\s+(.+)$/iu.exec(
+    /^(?:asigna|asignar|pasa|pasar|deja|dejá|dejar|mueve|mover|traspasa|traspasar|reparte|repartir|agrega|agregar|mete|meter|pon|poner)\s+(.+?)\s+(del\s+dinero\s+disponible|del\s+disponible)\s+a\s+(.+)$/iu.exec(
       t.trim(),
     );
   if (verboMontoDelA) {
@@ -225,6 +275,11 @@ function parseAsignacionDesdeDisponibleAmplio(raw: string): ParsedAsignacionSinC
         return { monto, banco: mapped.banco, cuentaProducto: mapped.cuenta };
       }
     }
+  }
+
+  const directo = parseVerboDirectoHaciaCuenta(t);
+  if (directo) {
+    return directo;
   }
 
   if (!tieneSenalOrigenDineroExistente(t)) {

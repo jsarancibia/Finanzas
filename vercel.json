@@ -35,6 +35,9 @@
     },
     "api/auth-session.mjs": {
       "includeFiles": "{dist/**,config/**,lib/**}"
+    },
+    "api/auth-config.mjs": {
+      "includeFiles": "{dist/**,config/**,lib/**}"
     }
   }
 }

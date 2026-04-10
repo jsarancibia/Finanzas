@@ -367,4 +367,160 @@ ok('del dinero disponible tengo 9601 en mercado pago para gastar → sigue siend
   assert.equal(p!.banco, 'Mercado Pago');
 });
 
+// === VERBO DIRECTO + monto + destino → asignación desde disponible (NUNCA ingreso) ===
+
+ok('agrega 15000 a mercado pago → asignación (no ingreso)', () => {
+  const t = 'agrega 15000 a mercado pago';
+  const p = parseAsignarDesdeDisponibleSinCuenta(t);
+  assert.ok(p, 'debe ser asignación desde disponible');
+  assert.equal(p!.monto, 15_000);
+  assert.equal(p!.banco, 'Mercado Pago');
+  assert.equal(parseMessageRegex(t), null, 'regex no debe capturar');
+});
+
+ok('pasa 10000 a cuenta rut → asignación', () => {
+  const t = 'pasa 10000 a cuenta rut';
+  const p = parseAsignarDesdeDisponibleSinCuenta(t);
+  assert.ok(p);
+  assert.equal(p!.monto, 10_000);
+  assert.equal(p!.banco, 'Banco Estado');
+  assert.equal(p!.cuentaProducto, 'Cuenta RUT');
+});
+
+ok('mete 50000 en mercado pago → asignación', () => {
+  const p = parseAsignarDesdeDisponibleSinCuenta('mete 50000 en mercado pago');
+  assert.ok(p);
+  assert.equal(p!.monto, 50_000);
+  assert.equal(p!.banco, 'Mercado Pago');
+});
+
+ok('pon 20000 en cuenta rut → asignación', () => {
+  const p = parseAsignarDesdeDisponibleSinCuenta('pon 20000 en cuenta rut');
+  assert.ok(p);
+  assert.equal(p!.monto, 20_000);
+  assert.equal(p!.banco, 'Banco Estado');
+  assert.equal(p!.cuentaProducto, 'Cuenta RUT');
+});
+
+ok('deja 10000 en cuenta rut → asignación', () => {
+  const p = parseAsignarDesdeDisponibleSinCuenta('deja 10000 en cuenta rut');
+  assert.ok(p);
+  assert.equal(p!.monto, 10_000);
+  assert.equal(p!.banco, 'Banco Estado');
+});
+
+ok('asigna 30000 a banco estado → asignación', () => {
+  const p = parseAsignarDesdeDisponibleSinCuenta('asigna 30000 a banco estado');
+  assert.ok(p);
+  assert.equal(p!.monto, 30_000);
+  assert.equal(p!.banco, 'Banco Estado');
+});
+
+ok('mueve 15000 a mercado pago → asignación', () => {
+  const p = parseAsignarDesdeDisponibleSinCuenta('mueve 15000 a mercado pago');
+  assert.ok(p);
+  assert.equal(p!.monto, 15_000);
+  assert.equal(p!.banco, 'Mercado Pago');
+});
+
+ok('pasale 25000 a mercado libre → asignación', () => {
+  const p = parseAsignarDesdeDisponibleSinCuenta('pasale 25000 a mercado libre');
+  assert.ok(p);
+  assert.equal(p!.monto, 25_000);
+  assert.equal(p!.banco, 'Mercado Pago');
+});
+
+ok('ponle 5000 a la cuenta rut → asignación', () => {
+  const p = parseAsignarDesdeDisponibleSinCuenta('ponle 5000 a la cuenta rut');
+  assert.ok(p);
+  assert.equal(p!.monto, 5_000);
+  assert.equal(p!.banco, 'Banco Estado');
+});
+
+ok('metele 10000 en mercado pago → asignación', () => {
+  const p = parseAsignarDesdeDisponibleSinCuenta('metele 10000 en mercado pago');
+  assert.ok(p);
+  assert.equal(p!.monto, 10_000);
+  assert.equal(p!.banco, 'Mercado Pago');
+});
+
+ok('por favor agrega 8000 a cuenta rut → asignación (cortesía)', () => {
+  const p = parseAsignarDesdeDisponibleSinCuenta('por favor agrega 8000 a cuenta rut');
+  assert.ok(p);
+  assert.equal(p!.monto, 8_000);
+  assert.equal(p!.banco, 'Banco Estado');
+});
+
+ok('agrega 50 lucas a mercado pago → asignación coloquial', () => {
+  const p = parseAsignarDesdeDisponibleSinCuenta('agrega 50 lucas a mercado pago');
+  assert.ok(p);
+  assert.equal(p!.monto, 50_000);
+  assert.equal(p!.banco, 'Mercado Pago');
+});
+
+// === TRASPASOS no se confunden con asignación ===
+
+ok('pasa 15000 de cuenta rut a mercado pago → NO asignación (traspaso)', () => {
+  const p = parseAsignarDesdeDisponibleSinCuenta('pasa 15000 de cuenta rut a mercado pago');
+  assert.equal(p, null, 'debe dejar pasar al traspaso');
+  const tr = parseTraspaso('pasa 15000 de cuenta rut a mercado pago');
+  assert.ok(tr, 'traspaso debe capturarlo');
+  assert.equal(tr!.monto, 15_000);
+});
+
+ok('mueve 20000 desde mercado pago a cuenta rut → NO asignación (traspaso)', () => {
+  assert.equal(
+    parseAsignarDesdeDisponibleSinCuenta('mueve 20000 desde mercado pago a cuenta rut'),
+    null,
+  );
+});
+
+// === Ahorro NO se confunde con asignación ===
+
+ok('agrega un ahorro de 15000 en mercado pago → NO asignación (ahorro)', () => {
+  assert.equal(
+    parseAsignarDesdeDisponibleSinCuenta('agrega un ahorro de 15000 en mercado pago'),
+    null,
+  );
+});
+
+ok('mete 15000 en ahorro mercado pago → NO asignación (ahorro)', () => {
+  assert.equal(
+    parseAsignarDesdeDisponibleSinCuenta('mete 15000 en ahorro mercado pago'),
+    null,
+  );
+});
+
+// === Ingreso puro sigue siendo ingreso ===
+
+ok('tengo 2821840 → sigue siendo ingreso', () => {
+  const p = parseMessageRegex('tengo 2821840');
+  assert.ok(p);
+  assert.equal(p!.tipo, 'ingreso');
+  assert.equal(parseAsignarDesdeDisponibleSinCuenta('tengo 2821840'), null);
+});
+
+ok('me pagaron 500000 → ingreso (no asignación)', () => {
+  assert.equal(parseAsignarDesdeDisponibleSinCuenta('me pagaron 500000'), null);
+  const p = parseMessageRegex('me pagaron 500000');
+  assert.ok(p);
+  assert.equal(p!.tipo, 'ingreso');
+});
+
+ok('gané 100000 → ingreso (no asignación)', () => {
+  assert.equal(parseAsignarDesdeDisponibleSinCuenta('gané 100000'), null);
+  const p = parseMessageRegex('gané 100000');
+  assert.ok(p);
+  assert.equal(p!.tipo, 'ingreso');
+});
+
+// === Casos previos siguen pasando ===
+
+ok('del dinero disponible tengo 9601 en MP para gastar → sigue siendo asignación (v2)', () => {
+  const t = 'del dinero disponible, tengo 9601 en mercado pago para gastar';
+  const p = parseAsignarDesdeDisponibleSinCuenta(t);
+  assert.ok(p);
+  assert.equal(p!.monto, 9601);
+});
+
 console.log('\nTodas las comprobaciones pasaron.');
