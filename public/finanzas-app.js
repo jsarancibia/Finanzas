@@ -201,7 +201,7 @@ export async function runApp({ getAuthHeaders, authUserId }) {
                 appendBubble("assistant", texto, { warn: !res.ok });
                 addForm.hidden = true;
                 inp.value = "";
-                void refreshResumen();
+                void refreshResumenConCache();
               } catch (err) {
                 appendBubble("assistant", err instanceof Error ? err.message : String(err), { warn: true });
               } finally {
@@ -539,7 +539,7 @@ export async function runApp({ getAuthHeaders, authUserId }) {
             const data = await sendMessage(text);
             removeTyping(typingEl);
             appendBubble("assistant", data.texto, { warn: !data.resultado || !data.resultado.ok });
-            void refreshResumen();
+            void refreshResumenConCache();
           } catch (err) {
             removeTyping(typingEl);
             appendBubble(
@@ -701,9 +701,18 @@ export async function runApp({ getAuthHeaders, authUserId }) {
             body: JSON.stringify({ banco, nombre, tipo }),
           });
           const ct = res.headers.get("content-type") || "";
-          const data = ct.includes("application/json") ? await res.json() : null;
+          let data = null;
+          try {
+            data = ct.includes("application/json") ? await res.json() : null;
+          } catch {
+            data = null;
+          }
           if (!res.ok || !data?.ok) {
-            return (data && data.error) || "No se pudo crear la cuenta.";
+            const msg =
+              (data && typeof data.error === "string" && data.error.trim()) ||
+              (data && typeof data.texto === "string" && data.texto.trim()) ||
+              "";
+            return msg || `No se pudo crear la cuenta (HTTP ${res.status}).`;
           }
           if (onSuccess) onSuccess(data);
           return null;
@@ -750,6 +759,14 @@ export async function runApp({ getAuthHeaders, authUserId }) {
 
         const OPCION_NUEVA = "__nueva__";
 
+        function syncVisibilidadNuevaCuentaAD() {
+          const esNueva = adCuenta.value === OPCION_NUEVA;
+          adNueva.hidden = !esNueva;
+          if (esNueva) {
+            setTimeout(() => adNuevaBanco.focus(), 50);
+          }
+        }
+
         function poblarSelectCuentas() {
           adCuenta.innerHTML = "";
           if (_cuentasCache.length > 0) {
@@ -764,13 +781,11 @@ export async function runApp({ getAuthHeaders, authUserId }) {
           optNueva.value = OPCION_NUEVA;
           optNueva.textContent = "＋ Crear nueva cuenta";
           adCuenta.appendChild(optNueva);
+          // Sin cuentas: la única opción queda seleccionada pero no dispara «change» → mostrar formulario nuevo
+          syncVisibilidadNuevaCuentaAD();
         }
 
-        adCuenta.addEventListener("change", () => {
-          const esNueva = adCuenta.value === OPCION_NUEVA;
-          adNueva.hidden = !esNueva;
-          if (esNueva) adNuevaBanco.focus();
-        });
+        adCuenta.addEventListener("change", syncVisibilidadNuevaCuentaAD);
 
         function abrirModalAgregarDinero(prefillBanco, prefillNombre) {
           poblarSelectCuentas();
