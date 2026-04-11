@@ -331,23 +331,29 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
   const gasto =
     /^(gasté|gaste|gasto)\s+\$?([\d][\d.,]*)(?:\s+en\s+(.+))?$/i.exec(t);
   if (gasto) {
-    const monto = parseMonto(gasto[2]);
-    if (monto === null) {
-      return null;
-    }
     const rawTail = (gasto[3] ?? '').trim();
-    const tail = rawTail ? limpiarBancoDeColaGasto(rawTail) : '';
-    const cat = tail ? inferCategoriaGasto(tail) : 'otros';
-    const descripcion =
-      tail && (cat === 'otros' || tail.split(/\s+/).length > 1) ? tail : '';
-    return {
-      tipo: 'gasto',
-      monto,
-      categoria: cat,
-      descripcion,
-      origen: null,
-      destino: null,
-    };
+    // Si hay «… en categoría desde cuenta», el (.+) del regex corto se come «desde …»;
+    // debe resolverse en `gastoColoquial` (origen de fondos).
+    if (/\s+desde\s+/i.test(rawTail)) {
+      /* continuar */
+    } else {
+      const monto = parseMonto(gasto[2]);
+      if (monto === null) {
+        return null;
+      }
+      const tail = rawTail ? limpiarBancoDeColaGasto(rawTail) : '';
+      const cat = tail ? inferCategoriaGasto(tail) : 'otros';
+      const descripcion =
+        tail && (cat === 'otros' || tail.split(/\s+/).length > 1) ? tail : '';
+      return {
+        tipo: 'gasto',
+        monto,
+        categoria: cat,
+        descripcion,
+        origen: null,
+        destino: null,
+      };
+    }
   }
 
   const ahorro =
