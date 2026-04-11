@@ -88,7 +88,11 @@ function mapearOrigenGastoDesdeFrag(frag: string): { banco: string; cuentaProduc
     return { banco: 'Banco Estado', cuentaProducto: 'Cuenta RUT' };
   }
   if (/\bmercado\s+pago\b/i.test(s)) {
-    return { banco: 'Mercado Pago', cuentaProducto: 'Disponible' };
+    // La cuenta principal MP suele llamarse «Mercado Pago» (mismo que el banco). «Disponible» solo si el usuario lo dice explícito.
+    if (/\bdisponible\b|\bpara\s+gastar\b/i.test(s)) {
+      return { banco: 'Mercado Pago', cuentaProducto: 'Disponible' };
+    }
+    return { banco: 'Mercado Pago', cuentaProducto: 'Mercado Pago' };
   }
   if (/\befectivo\b/i.test(s)) {
     return { banco: 'Efectivo', cuentaProducto: 'Efectivo' };

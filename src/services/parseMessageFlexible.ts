@@ -379,7 +379,8 @@ export function parseMessageFlexible(text: string): ParsedMovimiento | null {
         ? tail
         : '';
     if (!cuentaProducto && banco) {
-      cuentaProducto = 'Disponible';
+      // Mercado Pago: la cuenta por defecto en la app suele ser «Mercado Pago», no una fila «Disponible» aparte.
+      cuentaProducto = banco === 'Mercado Pago' ? 'Mercado Pago' : 'Disponible';
     }
   } else if (tipo === 'ahorro' && /\binvertí\b|\binverti\b/i.test(raw)) {
     const det = tailTrasEn(raw).replace(/^(de|del|por|para|en)\s+/i, '').trim();

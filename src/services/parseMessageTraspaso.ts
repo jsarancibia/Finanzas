@@ -52,14 +52,15 @@ export function mapExtremoTraspaso(frag: string): { banco: string; cuenta: strin
   if (/\bmercado\s+pago\b/i.test(s)) {
     if (prod) return { banco: 'Mercado Pago', cuenta: prod };
     const sub = extraerSubcuentaDeFragmento(s, /\bmercado\s+pago\b/i);
-    return { banco: 'Mercado Pago', cuenta: sub || 'Disponible' };
+    // Sin subcuenta explícita: la cuenta principal en la app suele llamarse «Mercado Pago», no «Disponible».
+    return { banco: 'Mercado Pago', cuenta: sub || 'Mercado Pago' };
   }
   const b = detectBanco(s);
   if (b && prod) {
     return { banco: b, cuenta: prod };
   }
   if (b) {
-    return { banco: b, cuenta: 'Disponible' };
+    return { banco: b, cuenta: b === 'Mercado Pago' ? 'Mercado Pago' : 'Disponible' };
   }
   if (/\befectivo\b/i.test(s)) {
     return { banco: 'Efectivo', cuenta: 'Efectivo' };
