@@ -44,6 +44,9 @@
     },
     "api/crear-cuenta.mjs": {
       "includeFiles": "{dist/**,config/**,lib/**}"
+    },
+    "api/eliminar-cuenta.mjs": {
+      "includeFiles": "{dist/**,config/**,lib/**}"
     }
   }
 }

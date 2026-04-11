@@ -140,12 +140,25 @@ export async function runApp({ getAuthHeaders, authUserId }) {
           }
 
           if (addOpts && addOpts.banco && addOpts.cuentaProducto) {
+            const actions = document.createElement("div");
+            actions.className = "fin-card__actions";
+
+            const delBtn = document.createElement("button");
+            delBtn.type = "button";
+            delBtn.className = "fin-card__del-btn";
+            delBtn.title = "Eliminar esta cuenta (solo si no tiene movimientos)";
+            delBtn.setAttribute("aria-label", "Eliminar cuenta");
+            delBtn.textContent = "\u2212";
+
             const addBtn = document.createElement("button");
             addBtn.type = "button";
             addBtn.className = "fin-card__add-btn";
             addBtn.title = "Agregar dinero a esta cuenta";
             addBtn.textContent = "+";
-            card.appendChild(addBtn);
+
+            actions.appendChild(delBtn);
+            actions.appendChild(addBtn);
+            card.appendChild(actions);
 
             const addForm = document.createElement("div");
             addForm.className = "fin-card__add-form";
@@ -174,6 +187,43 @@ export async function runApp({ getAuthHeaders, authUserId }) {
               }
             });
 
+            delBtn.addEventListener("click", async () => {
+              const nomTarjeta = (nombre || "\u2014").trim();
+              const conf = window.confirm(
+                `\u00bfEliminar la cuenta \u00ab${nomTarjeta}\u00bb (${addOpts.banco} \u00b7 ${addOpts.cuentaProducto})?\n\n` +
+                  "Solo se puede si no tiene movimientos vinculados en el historial. Si a\u00fan aparecen operaciones, revi\u00e9rtelas desde el chat primero.",
+              );
+              if (!conf) return;
+              delBtn.disabled = true;
+              addBtn.disabled = true;
+              try {
+                const res = await authFetch("/api/eliminar-cuenta", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    banco: addOpts.banco,
+                    cuentaProducto: addOpts.cuentaProducto,
+                  }),
+                });
+                const ct = res.headers.get("content-type") || "";
+                const data = ct.includes("application/json") ? await res.json() : null;
+                const texto =
+                  data && typeof data.texto === "string"
+                    ? data.texto
+                    : res.ok
+                      ? "Cuenta eliminada."
+                      : "Error al eliminar.";
+                const fallo = !res.ok || (data && data.ok === false);
+                appendBubble("assistant", texto, { warn: fallo });
+                void refreshResumenConCache();
+              } catch (err) {
+                appendBubble("assistant", err instanceof Error ? err.message : String(err), { warn: true });
+              } finally {
+                delBtn.disabled = false;
+                addBtn.disabled = false;
+              }
+            });
+
             async function confirmarIngreso() {
               const v = Math.round(Number(inp.value));
               if (!v || v <= 0) {
@@ -182,6 +232,7 @@ export async function runApp({ getAuthHeaders, authUserId }) {
               }
               confirmBtn.disabled = true;
               addBtn.disabled = true;
+              delBtn.disabled = true;
               confirmBtn.textContent = "…";
               try {
                 const res = await authFetch("/api/ingreso-cuenta", {
@@ -207,6 +258,7 @@ export async function runApp({ getAuthHeaders, authUserId }) {
               } finally {
                 confirmBtn.disabled = false;
                 addBtn.disabled = false;
+                delBtn.disabled = false;
                 confirmBtn.textContent = "OK";
               }
             }

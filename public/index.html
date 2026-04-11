@@ -713,10 +713,19 @@
         border: 0;
       }
 
-      .fin-card__add-btn {
+      .fin-card__actions {
         position: absolute;
-        top: 0.55rem;
-        right: 0.55rem;
+        top: 0.5rem;
+        right: 0.5rem;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 0.32rem;
+        z-index: 3;
+      }
+
+      .fin-card__add-btn {
+        position: static;
         width: 22px;
         height: 22px;
         border-radius: 50%;
@@ -729,12 +738,31 @@
         display: grid;
         place-items: center;
         transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
-        z-index: 3;
         opacity: 0.7;
         padding: 0;
       }
 
-      .fin-card:hover .fin-card__add-btn {
+      .fin-card__del-btn {
+        position: static;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 1px solid color-mix(in srgb, var(--neon-gasto) 45%, var(--border));
+        background: color-mix(in srgb, var(--neon-gasto) 10%, transparent);
+        color: color-mix(in srgb, var(--neon-gasto) 92%, #fff);
+        font-size: 1.05rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+        opacity: 0.72;
+        padding: 0;
+      }
+
+      .fin-card:hover .fin-card__actions .fin-card__add-btn,
+      .fin-card:hover .fin-card__actions .fin-card__del-btn {
         opacity: 1;
       }
 
@@ -744,7 +772,14 @@
         transform: scale(1.08);
       }
 
-      .fin-card__add-btn:disabled {
+      .fin-card__del-btn:hover {
+        background: color-mix(in srgb, var(--neon-gasto) 22%, transparent);
+        border-color: color-mix(in srgb, var(--neon-gasto) 65%, var(--border));
+        transform: scale(1.08);
+      }
+
+      .fin-card__add-btn:disabled,
+      .fin-card__del-btn:disabled {
         opacity: 0.35;
         cursor: not-allowed;
         transform: none;
@@ -1110,6 +1145,11 @@
 
         .fin-card:hover,
         button[type="submit"]:hover:not(:disabled) {
+          transform: none;
+        }
+
+        .fin-card__add-btn:hover,
+        .fin-card__del-btn:hover {
           transform: none;
         }
       }
