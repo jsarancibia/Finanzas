@@ -17,7 +17,8 @@ export interface IngresoCuentaResponse {
  * Registra un ingreso directo a una cuenta específica sin pasar por el pool
  * «disponible sin cuenta». arquitectura12 — Caso 2 y Caso 3.
  *
- * - Aumenta saldo_disponible (la cuenta es tipo disponible/ahorro/inversion)
+ * - Cuenta tipo disponible: aumenta saldo_disponible en balances (no toca sin_cuenta).
+ * - Cuenta tipo ahorro/inversión: aumenta saldo_ahorrado en balances (migración 021).
  * - NO aumenta saldo_disponible_sin_cuenta
  * - Actualiza el saldo de la cuenta concreta
  */
@@ -76,6 +77,7 @@ export async function handleIngresoCuentaPost(
     const lineas = [`✔ Ingreso registrado: ${m} → ${destino}`];
     if (saldos) {
       lineas.push(`Saldo disponible: ${formatoMontoAsistente(saldos.saldo_disponible, reglas)}`);
+      lineas.push(`Saldo ahorrado: ${formatoMontoAsistente(saldos.saldo_ahorrado, reglas)}`);
     }
 
     return { texto: lineas.join('\n'), ok: true };

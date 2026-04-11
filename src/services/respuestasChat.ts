@@ -179,6 +179,12 @@ export async function construirRespuestaAsistente(
       if (resultado.asignacion_desde_sin_cuenta) {
         out.push(lineaDisponibleSinCuenta(reglas, saldos.saldo_disponible_sin_cuenta));
       }
+      if (
+        parsed.tipo === 'ahorro' ||
+        (parsed.tipo === 'ingreso' && parsed.banco && parsed.cuentaProducto)
+      ) {
+        out.push(lineaSaldoAhorrado(reglas, saldos.saldo_ahorrado));
+      }
       return out.join('\n');
     }
     return cuerpo;
@@ -192,7 +198,10 @@ export async function construirRespuestaAsistente(
   if (resultado.asignacion_desde_sin_cuenta) {
     lineas.push(lineaDisponibleSinCuenta(reglas, saldos.saldo_disponible_sin_cuenta));
   }
-  if (parsed.tipo === 'ahorro') {
+  if (
+    parsed.tipo === 'ahorro' ||
+    (parsed.tipo === 'ingreso' && parsed.banco && parsed.cuentaProducto)
+  ) {
     lineas.push(lineaSaldoAhorrado(reglas, saldos.saldo_ahorrado));
   }
   return lineas.join('\n');
