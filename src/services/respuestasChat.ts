@@ -126,7 +126,12 @@ export async function construirRespuestaAsistente(
     const hacia = `${parsed.banco} · ${parsed.cuentaProducto}`;
     cuerpo = `${prefijo}Asignado ${m} desde disponible sin cuenta a ${hacia}`;
   } else if (parsed.tipo === 'ingreso') {
-    const extra = parsed.descripcion ? ` (${parsed.descripcion})` : '';
+    let extra = '';
+    if (parsed.banco && parsed.cuentaProducto) {
+      extra = ` (${parsed.banco} · ${parsed.cuentaProducto})`;
+    } else if (parsed.descripcion) {
+      extra = ` (${parsed.descripcion})`;
+    }
     cuerpo = `${prefijo}Ingreso registrado: ${m}${extra}`;
   } else if (parsed.tipo === 'gasto') {
     const label = (parsed.categoria && parsed.categoria !== 'otros')

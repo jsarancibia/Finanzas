@@ -16,6 +16,7 @@ const distChat = path.resolve(root, 'dist', 'routes', 'handleChatPost.js');
 const distChatHistory = path.resolve(root, 'dist', 'routes', 'handleChatHistoryGet.js');
 const distChatClear = path.resolve(root, 'dist', 'routes', 'handleChatClearPost.js');
 const distResumen = path.resolve(root, 'dist', 'routes', 'handleResumenCuentasGet.js');
+const distIngresoCuenta = path.resolve(root, 'dist', 'routes', 'handleIngresoCuentaPost.js');
 const distVerify = path.resolve(root, 'dist', 'services', 'verifySessionToken.js');
 
 const API_WITH_OPTIONS = [
@@ -25,6 +26,7 @@ const API_WITH_OPTIONS = [
   '/api/chat-clear',
   '/api/auth-config',
   '/api/auth-session',
+  '/api/ingreso-cuenta',
 ];
 const PREFERRED_PORT = Number(process.env.PORT) || 3000;
 
@@ -85,10 +87,8 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'OPTIONS' && API_WITH_OPTIONS.includes(url.pathname)) {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    const methods =
-      url.pathname === '/api/chat' || url.pathname === '/api/chat-clear'
-        ? 'POST, OPTIONS'
-        : 'GET, OPTIONS';
+    const postOnly = ['/api/chat', '/api/chat-clear', '/api/ingreso-cuenta'];
+    const methods = postOnly.includes(url.pathname) ? 'POST, OPTIONS' : 'GET, OPTIONS';
     res.setHeader('Access-Control-Allow-Methods', methods);
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.writeHead(204).end();
@@ -261,6 +261,52 @@ const server = http.createServer(async (req, res) => {
             : null;
       const out = await handleChatClearPost(sessionId, user.id);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(out));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: msg }));
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/ingreso-cuenta') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const user = await requireAuthDev(req, res);
+    if (!user) {
+      return;
+    }
+    try {
+      if (!fs.existsSync(distIngresoCuenta)) {
+        res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Falta dist/. Ejecuta antes: npm run build' }));
+        return;
+      }
+      const { handleIngresoCuentaPost } = await import(pathToFileURL(distIngresoCuenta).href);
+      const raw = await readBody(req);
+      let body;
+      try {
+        body = raw ? JSON.parse(raw) : {};
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'JSON inválido' }));
+        return;
+      }
+      const monto = Number(body.monto);
+      if (!Number.isFinite(monto) || monto <= 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Monto inválido' }));
+        return;
+      }
+      const banco = typeof body.banco === 'string' ? body.banco.trim() : '';
+      const cuentaProducto = typeof body.cuentaProducto === 'string' ? body.cuentaProducto.trim() : '';
+      if (!banco || !cuentaProducto) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Falta banco o cuentaProducto' }));
+        return;
+      }
+      const out = await handleIngresoCuentaPost(monto, banco, cuentaProducto, user.id);
+      res.writeHead(out.ok ? 200 : 422, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(out));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

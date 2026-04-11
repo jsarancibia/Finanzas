@@ -38,6 +38,9 @@
     },
     "api/auth-config.mjs": {
       "includeFiles": "{dist/**,config/**,lib/**}"
+    },
+    "api/ingreso-cuenta.mjs": {
+      "includeFiles": "{dist/**,config/**,lib/**}"
     }
   }
 }

@@ -106,7 +106,16 @@ export async function runApp({ getAuthHeaders, authUserId }) {
           }
         }
 
-        function elFinCard(nombre, bancoLine, montoStr, variant, fechaStr) {
+        /**
+         * Crea una tarjeta financiera.
+         * @param {string} nombre
+         * @param {string|null} bancoLine - texto de meta (banco)
+         * @param {string} montoStr
+         * @param {string} variant - disponible | ahorro | gasto | pendiente
+         * @param {string} fechaStr
+         * @param {{ banco: string, cuentaProducto: string } | null} [addOpts] - si se pasa, agrega botón "+"
+         */
+        function elFinCard(nombre, bancoLine, montoStr, variant, fechaStr, addOpts) {
           const card = document.createElement("article");
           card.className = "fin-card fin-card--" + variant;
           const tit = document.createElement("h3");
@@ -129,6 +138,89 @@ export async function runApp({ getAuthHeaders, authUserId }) {
             fe.textContent = fechaStr;
             card.appendChild(fe);
           }
+
+          if (addOpts && addOpts.banco && addOpts.cuentaProducto) {
+            const addBtn = document.createElement("button");
+            addBtn.type = "button";
+            addBtn.className = "fin-card__add-btn";
+            addBtn.title = "Agregar dinero a esta cuenta";
+            addBtn.textContent = "+";
+            card.appendChild(addBtn);
+
+            const addForm = document.createElement("div");
+            addForm.className = "fin-card__add-form";
+            addForm.hidden = true;
+
+            const inp = document.createElement("input");
+            inp.type = "number";
+            inp.className = "fin-card__add-input";
+            inp.placeholder = "Monto";
+            inp.min = "1";
+            inp.step = "1";
+
+            const confirmBtn = document.createElement("button");
+            confirmBtn.type = "button";
+            confirmBtn.className = "fin-card__add-confirm";
+            confirmBtn.textContent = "OK";
+
+            addForm.appendChild(inp);
+            addForm.appendChild(confirmBtn);
+            card.appendChild(addForm);
+
+            addBtn.addEventListener("click", () => {
+              addForm.hidden = !addForm.hidden;
+              if (!addForm.hidden) {
+                inp.focus();
+              }
+            });
+
+            async function confirmarIngreso() {
+              const v = Math.round(Number(inp.value));
+              if (!v || v <= 0) {
+                inp.focus();
+                return;
+              }
+              confirmBtn.disabled = true;
+              addBtn.disabled = true;
+              confirmBtn.textContent = "…";
+              try {
+                const res = await authFetch("/api/ingreso-cuenta", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    monto: v,
+                    banco: addOpts.banco,
+                    cuentaProducto: addOpts.cuentaProducto,
+                  }),
+                });
+                const ct = res.headers.get("content-type") || "";
+                const data = ct.includes("application/json") ? await res.json() : null;
+                const texto = (data && typeof data.texto === "string")
+                  ? data.texto
+                  : (res.ok ? "Ingreso registrado." : "Error al registrar.");
+                appendBubble("assistant", texto, { warn: !res.ok });
+                addForm.hidden = true;
+                inp.value = "";
+                void refreshResumen();
+              } catch (err) {
+                appendBubble("assistant", err instanceof Error ? err.message : String(err), { warn: true });
+              } finally {
+                confirmBtn.disabled = false;
+                addBtn.disabled = false;
+                confirmBtn.textContent = "OK";
+              }
+            }
+
+            confirmBtn.addEventListener("click", confirmarIngreso);
+            inp.addEventListener("keydown", (e) => {
+              if (e.key === "Enter") confirmarIngreso();
+              if (e.key === "Escape") {
+                addForm.hidden = true;
+                inp.value = "";
+              }
+            });
+          }
+
           return card;
         }
 
@@ -258,8 +350,9 @@ export async function runApp({ getAuthHeaders, authUserId }) {
               for (const c of disp) {
                 if (!c) continue;
                 const banco = c.banco && String(c.banco).trim() ? String(c.banco).trim() : null;
+                const addOpts = banco ? { banco, cuentaProducto: String(c.nombre || "") } : null;
                 s1.cards.appendChild(
-                  elFinCard(String(c.nombre || "\u2014"), banco, formatMonto(c.monto, moneda), "disponible", ""),
+                  elFinCard(String(c.nombre || "\u2014"), banco, formatMonto(c.monto, moneda), "disponible", "", addOpts),
                 );
               }
             }
@@ -278,8 +371,9 @@ export async function runApp({ getAuthHeaders, authUserId }) {
               for (const c of ahr) {
                 if (!c) continue;
                 const banco = c.banco && String(c.banco).trim() ? String(c.banco).trim() : null;
+                const addOpts = banco ? { banco, cuentaProducto: String(c.nombre || "") } : null;
                 s2.cards.appendChild(
-                  elFinCard(String(c.nombre || "\u2014"), banco, formatMonto(c.monto, moneda), "ahorro", ""),
+                  elFinCard(String(c.nombre || "\u2014"), banco, formatMonto(c.monto, moneda), "ahorro", "", addOpts),
                 );
               }
             }
