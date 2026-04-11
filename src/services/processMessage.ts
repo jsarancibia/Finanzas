@@ -17,6 +17,7 @@ import {
 import { tryCompletarGastoPendienteConCuenta } from './gastoCompletarRespuestaCuenta.js';
 import { resolverGastoCuentaAntesDeRpc } from './gastoRequiereCuenta.js';
 import { corregirTypos } from './corregirTypos.js';
+import { obtenerSaldosBalancesDesdeBd } from './memoriaContexto.js';
 
 export type ProcessOk = {
   ok: true;
@@ -28,6 +29,18 @@ export type ProcessOk = {
   traspaso_hacia?: string;
   /** Ingreso por asignación desde el colchón «disponible sin cuenta». */
   asignacion_desde_sin_cuenta?: boolean;
+  /**
+   * Auto-fallback activado (arquitectura14): no había saldo suficiente en el pool
+   * y se creó un ingreso directo a la cuenta por el monto faltante.
+   */
+  fallback_auto?: {
+    /** Monto que se tomó del pool «disponible sin cuenta» (0 si el pool estaba vacío). */
+    monto_pool: number;
+    /** Monto registrado como ingreso directo a la cuenta destino. */
+    monto_ingreso: number;
+    banco: string;
+    cuentaProducto: string;
+  };
 };
 
 /** Respuesta solo texto: consejo, pedir monto, etc. Sin movimiento ni RPC. */
@@ -103,6 +116,31 @@ async function rpcAplicarMovimiento(
   return { ok: false, phase: 'resultado', error: err };
 }
 
+/** Ingreso directo a cuenta (arquitectura14 fallback). NO pasa por disponible sin cuenta. */
+async function rpcIngresoDirectoCuenta(
+  monto: number,
+  banco: string,
+  cuentaProducto: string,
+  authUserId: string,
+): Promise<{ ok: true; movimiento_id: string } | { ok: false; error: string }> {
+  const destino = `${banco} · ${cuentaProducto}`;
+  const { data, error } = await getSupabaseService().rpc('aplicar_movimiento', {
+    p_auth_user_id: authUserId,
+    p_tipo: 'ingreso',
+    p_monto: monto,
+    p_categoria: 'ingreso_directo',
+    p_descripcion: `Ingreso auto a ${destino}`,
+    p_origen: '',
+    p_destino: destino,
+    p_banco: banco,
+    p_cuenta_producto: cuentaProducto,
+  });
+  if (error) return { ok: false, error: error.message };
+  const row = data as { ok?: boolean; movimiento_id?: string; error?: string } | null;
+  if (row?.ok && row.movimiento_id) return { ok: true, movimiento_id: row.movimiento_id };
+  return { ok: false, error: (typeof row?.error === 'string' ? row.error : 'rechazado') };
+}
+
 async function ejecutarAsignacionDesdeSinCuenta(
   text: string,
   authUserId: string,
@@ -114,6 +152,18 @@ async function ejecutarAsignacionDesdeSinCuenta(
   if (!authUserId) {
     return { ok: false, phase: 'rpc', error: 'sin_usuario_autenticado' };
   }
+
+  const parsedBase: ParsedMovimiento = {
+    tipo: 'ingreso',
+    monto: asg.monto,
+    categoria: 'asignacion_sin_cuenta',
+    descripcion: 'desde disponible sin cuenta',
+    origen: null,
+    destino: `${asg.banco} · ${asg.cuentaProducto}`,
+    banco: asg.banco,
+    cuentaProducto: asg.cuentaProducto,
+  };
+
   const { data, error } = await getSupabaseService().rpc('asignar_desde_disponible_sin_cuenta', {
     p_auth_user_id: authUserId,
     p_monto: asg.monto,
@@ -122,76 +172,89 @@ async function ejecutarAsignacionDesdeSinCuenta(
   });
 
   if (error) {
-    return {
-      ok: false,
-      phase: 'rpc',
-      error: error.message,
-      parsed: {
-        tipo: 'ingreso',
-        monto: asg.monto,
-        categoria: 'asignacion_sin_cuenta',
-        descripcion: 'desde disponible sin cuenta',
-        origen: null,
-        destino: `${asg.banco} · ${asg.cuentaProducto}`,
-        banco: asg.banco,
-        cuentaProducto: asg.cuentaProducto,
-      },
-    };
+    return { ok: false, phase: 'rpc', error: error.message, parsed: parsedBase };
   }
 
   const row = data as { ok?: boolean; movimiento_id?: string; error?: string } | null;
   if (!row || typeof row !== 'object') {
-    return {
-      ok: false,
-      phase: 'resultado',
-      error: 'respuesta_vacia',
-      parsed: {
-        tipo: 'ingreso',
-        monto: asg.monto,
-        categoria: 'asignacion_sin_cuenta',
-        descripcion: 'desde disponible sin cuenta',
-        origen: null,
-        destino: `${asg.banco} · ${asg.cuentaProducto}`,
-        banco: asg.banco,
-        cuentaProducto: asg.cuentaProducto,
-      },
-    };
+    return { ok: false, phase: 'resultado', error: 'respuesta_vacia', parsed: parsedBase };
   }
 
+  // ── Flujo normal: había saldo suficiente ──
   if (row.ok === true && row.movimiento_id) {
     return {
       ok: true,
       movimiento_id: row.movimiento_id,
-      parsed: {
-        tipo: 'ingreso',
-        monto: asg.monto,
-        categoria: 'asignacion_sin_cuenta',
-        descripcion: 'desde disponible sin cuenta',
-        origen: null,
-        destino: `${asg.banco} · ${asg.cuentaProducto}`,
-        banco: asg.banco,
-        cuentaProducto: asg.cuentaProducto,
-      },
+      parsed: parsedBase,
       asignacion_desde_sin_cuenta: true,
     };
   }
 
   const err = typeof row.error === 'string' ? row.error : 'rechazado';
-  return {
-    ok: false,
-    phase: 'resultado',
-    error: err,
-    parsed: {
-      tipo: 'ingreso',
-      monto: asg.monto,
-      categoria: 'asignacion_sin_cuenta',
-      descripcion: 'desde disponible sin cuenta',
-      origen: null,
-      destino: `${asg.banco} · ${asg.cuentaProducto}`,
-      banco: asg.banco,
-      cuentaProducto: asg.cuentaProducto,
-    },
-  };
+
+  // ── AUTO-FALLBACK (arquitectura14): saldo insuficiente en el pool ──
+  if (err === 'sin_cuenta_insuficiente') {
+    const saldos = await obtenerSaldosBalancesDesdeBd();
+    const enPool = saldos ? Math.max(0, Math.floor(saldos.saldo_disponible_sin_cuenta)) : 0;
+    const montoTotal = asg.monto;
+
+    // Caso B: pool vacío → ingreso directo por el total
+    if (enPool <= 0) {
+      const res = await rpcIngresoDirectoCuenta(montoTotal, asg.banco, asg.cuentaProducto, authUserId);
+      if (!res.ok) {
+        return { ok: false, phase: 'resultado', error: res.error, parsed: parsedBase };
+      }
+      return {
+        ok: true,
+        movimiento_id: res.movimiento_id,
+        parsed: parsedBase,
+        fallback_auto: { monto_pool: 0, monto_ingreso: montoTotal, banco: asg.banco, cuentaProducto: asg.cuentaProducto },
+      };
+    }
+
+    // Caso A: pool parcial → asignar lo que hay + ingreso directo por el resto
+    const montoIngreso = montoTotal - enPool;
+
+    // Paso 1: asignar los fondos disponibles del pool
+    const r1 = await getSupabaseService().rpc('asignar_desde_disponible_sin_cuenta', {
+      p_auth_user_id: authUserId,
+      p_monto: enPool,
+      p_banco: asg.banco,
+      p_cuenta_producto: asg.cuentaProducto,
+    });
+    if (r1.error) {
+      return { ok: false, phase: 'rpc', error: r1.error.message, parsed: parsedBase };
+    }
+    const rowPool = r1.data as { ok?: boolean; movimiento_id?: string; error?: string } | null;
+    if (!rowPool?.ok) {
+      // Pool no se pudo usar: fallback total por ingreso directo
+      const res = await rpcIngresoDirectoCuenta(montoTotal, asg.banco, asg.cuentaProducto, authUserId);
+      if (!res.ok) {
+        return { ok: false, phase: 'resultado', error: res.error, parsed: parsedBase };
+      }
+      return {
+        ok: true,
+        movimiento_id: res.movimiento_id,
+        parsed: parsedBase,
+        fallback_auto: { monto_pool: 0, monto_ingreso: montoTotal, banco: asg.banco, cuentaProducto: asg.cuentaProducto },
+      };
+    }
+
+    // Paso 2: ingreso directo por el monto restante
+    const res2 = await rpcIngresoDirectoCuenta(montoIngreso, asg.banco, asg.cuentaProducto, authUserId);
+    if (!res2.ok) {
+      return { ok: false, phase: 'resultado', error: res2.error, parsed: parsedBase };
+    }
+
+    return {
+      ok: true,
+      movimiento_id: res2.movimiento_id,
+      parsed: parsedBase,
+      fallback_auto: { monto_pool: enPool, monto_ingreso: montoIngreso, banco: asg.banco, cuentaProducto: asg.cuentaProducto },
+    };
+  }
+
+  return { ok: false, phase: 'resultado', error: err, parsed: parsedBase };
 }
 
 async function ejecutarTraspaso(

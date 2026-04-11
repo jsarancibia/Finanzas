@@ -122,6 +122,17 @@ export async function construirRespuestaAsistente(
   let cuerpo: string;
   if (resultado.traspaso_gasto_id && resultado.traspaso_desde && resultado.traspaso_hacia) {
     cuerpo = `${prefijo}Traspaso registrado: ${m}\n${resultado.traspaso_desde} → ${resultado.traspaso_hacia}`;
+  } else if (resultado.fallback_auto) {
+    // arquitectura14: auto-fallback por saldo insuficiente en el pool
+    const fb = resultado.fallback_auto;
+    const hacia = `${fb.banco} · ${fb.cuentaProducto}`;
+    const mIngreso = formatoMontoAsistente(fb.monto_ingreso, reglas);
+    if (fb.monto_pool > 0) {
+      const mPool = formatoMontoAsistente(fb.monto_pool, reglas);
+      cuerpo = `${prefijo}Se agregaron ${m} a ${hacia}\n(${mPool} desde disponible, ${mIngreso} registrado como ingreso)`;
+    } else {
+      cuerpo = `${prefijo}Se agregaron ${m} a ${hacia}\n(Sin saldo disponible, se registró como ingreso directo)`;
+    }
   } else if (resultado.asignacion_desde_sin_cuenta && parsed.banco && parsed.cuentaProducto) {
     const hacia = `${parsed.banco} · ${parsed.cuentaProducto}`;
     cuerpo = `${prefijo}Asignado ${m} desde disponible sin cuenta a ${hacia}`;
