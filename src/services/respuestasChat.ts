@@ -37,7 +37,26 @@ export async function respuestaErrorCorta(
     return 'No pude interpretar eso.';
   }
   if (resultado.phase === 'rpc') {
-    return 'No se pudo guardar. Revisa conexión o permisos.';
+    const errMsg = typeof resultado.error === 'string' ? resultado.error : '';
+    // Mostrar el error de negocio si es descriptivo y no expone datos internos
+    const erroresNegocio: Record<string, string> = {
+      sin_cuenta_insuficiente: 'No hay saldo suficiente en el pool disponible.',
+      saldo_insuficiente: 'Saldo disponible insuficiente para esa operación.',
+      cuenta_insuficiente: 'El saldo de la cuenta es insuficiente.',
+      ahorro_insuficiente_para_revertir: 'No se puede deshacer: el ahorro actual es menor al monto.',
+      sin_movimientos: 'No hay movimientos registrados para operar.',
+      sin_movimiento_con_ese_monto: 'No se encontró un movimiento con ese monto.',
+      duplicado: 'Ese movimiento ya fue registrado (anti-duplicado).',
+      cuenta_no_encontrada: 'La cuenta indicada no existe. Verifica el nombre.',
+      banco_no_encontrado: 'El banco indicado no existe. Verifica el nombre.',
+      asignacion_datos_invalidos: 'Datos de asignación inválidos. Falta cuenta de destino.',
+      monto_invalido: 'El monto ingresado no es válido.',
+      tipo_invalido: 'Tipo de movimiento no reconocido.',
+    };
+    if (errMsg && erroresNegocio[errMsg]) {
+      return `No se pudo guardar: ${erroresNegocio[errMsg]}`;
+    }
+    return 'No se pudo guardar. Revisa la conexión o intenta de nuevo.';
   }
   if (resultado.error === 'duplicado') {
     return 'Ese movimiento ya estaba registrado.';

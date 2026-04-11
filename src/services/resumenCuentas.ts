@@ -318,14 +318,18 @@ export async function obtenerResumenDashboard(
     return s + (Number.isFinite(m) ? m : 0);
   }, 0);
 
-  const huecoVsTotal = Math.max(0, saldo_disponible - sumaCuentasDisponible);
-  const dinero_pendiente_repartir = Math.min(saldo_disponible, huecoVsTotal);
+  /** Alinear total con cuentas + pool cuando `balances.saldo_disponible` quedó desfasado (misma idea que memoriaContexto). */
+  const desdeCuentasYPool = sumaCuentasDisponible + saldo_disponible_sin_cuenta;
+  const saldo_disponible_presentacion = Math.max(saldo_disponible, desdeCuentasYPool);
 
-  if (seccion_disponible.length === 0 && saldo_disponible > 0 && dinero_pendiente_repartir === 0) {
+  const huecoVsTotal = Math.max(0, saldo_disponible_presentacion - sumaCuentasDisponible);
+  const dinero_pendiente_repartir = Math.min(saldo_disponible_presentacion, huecoVsTotal);
+
+  if (seccion_disponible.length === 0 && saldo_disponible_presentacion > 0 && dinero_pendiente_repartir === 0) {
     seccion_disponible.push({
       nombre: 'Disponible',
       banco: null,
-      monto: saldo_disponible,
+      monto: saldo_disponible_presentacion,
     });
   }
 
@@ -374,7 +378,7 @@ export async function obtenerResumenDashboard(
 
   return {
     moneda: reglas.moneda.trim() || 'CLP',
-    saldo_disponible,
+    saldo_disponible: saldo_disponible_presentacion,
     saldo_disponible_sin_cuenta,
     dinero_pendiente_repartir,
     saldo_ahorrado_total,

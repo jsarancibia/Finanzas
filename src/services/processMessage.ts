@@ -195,8 +195,17 @@ async function ejecutarAsignacionDesdeSinCuenta(
   // ── AUTO-FALLBACK (arquitectura14): saldo insuficiente en el pool ──
   if (err === 'sin_cuenta_insuficiente') {
     const saldos = await obtenerSaldosBalancesDesdeBd();
-    const enPool = saldos ? Math.max(0, Math.floor(saldos.saldo_disponible_sin_cuenta)) : 0;
+    if (!saldos) {
+      return {
+        ok: false,
+        phase: 'resultado',
+        error: 'sin_lectura_saldos_fallback',
+        parsed: parsedBase,
+      };
+    }
     const montoTotal = asg.monto;
+    const enPoolRaw = Math.max(0, Math.round(Number(saldos.saldo_disponible_sin_cuenta)));
+    const enPool = Math.min(enPoolRaw, montoTotal);
 
     // Caso B: pool vacío → ingreso directo por el total
     if (enPool <= 0) {

@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 import { loadReglas } from '../config/loadReglas.js';
 import { fetchAllBalanceRows } from './fetchBalancesRows.js';
+import { getSupabaseService } from './supabaseClient.js';
 
 /**
  * DISEÑO DE MEMORIA (arquitectura.md)
@@ -132,6 +133,26 @@ export async function obtenerSaldosBalancesDesdeBd(): Promise<{
         saldo_disponible_sin_cuenta += Number(scRaw);
       }
     }
+
+    // Coherencia con cuentas «disponible» + pool (evita total desfasado vs tarjetas si `balances` quedó atrás)
+    const { data: filasDisp, error: errDisp } = await getSupabaseService()
+      .from('cuentas')
+      .select('saldo')
+      .eq('auth_user_id', uid)
+      .eq('tipo', 'disponible');
+    if (!errDisp && Array.isArray(filasDisp)) {
+      let sumaCuentasDisp = 0;
+      for (const r of filasDisp) {
+        const s = Number((r as { saldo?: unknown }).saldo);
+        if (Number.isFinite(s)) sumaCuentasDisp += Math.round(s);
+      }
+      const desdeCuentasYPool = sumaCuentasDisp + Math.round(saldo_disponible_sin_cuenta);
+      saldo_disponible = Math.max(Math.round(saldo_disponible), desdeCuentasYPool);
+    } else {
+      saldo_disponible = Math.round(saldo_disponible);
+    }
+    saldo_ahorrado = Math.round(saldo_ahorrado);
+    saldo_disponible_sin_cuenta = Math.round(saldo_disponible_sin_cuenta);
 
     return {
       saldo_disponible,

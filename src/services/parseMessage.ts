@@ -290,6 +290,7 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
     }
   }
 
+  // gané + dígito exacto
   const ingreso =
     /^(gané|gane|gano|ganó)\s+\$?([\d][\d.,]*)(?:\s+(.+))?$/i.exec(t);
   if (ingreso) {
@@ -306,6 +307,21 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
       origen: null,
       destino: null,
     };
+  }
+
+  // gané + coloquial (lucas, k, mil, etc.) — buscarMontoEnTextoCompleto lo resuelve
+  if (/^(gané|gane|gano|ganó)\s+/i.test(t)) {
+    const montoG = buscarMontoEnTextoCompleto(t);
+    if (montoG != null && montoG > 0) {
+      return {
+        tipo: 'ingreso',
+        monto: montoG,
+        categoria: '',
+        descripcion: '',
+        origen: null,
+        destino: null,
+      };
+    }
   }
 
   const gasto =
@@ -378,6 +394,39 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
         monto: ext.monto,
         categoria: '',
         descripcion: 'sueldo',
+        origen: null,
+        destino: null,
+      };
+    }
+  }
+
+  // recibí / cobré / me pagaron MONTO (sin necesitar "sueldo de")
+  const reciboSimple =
+    /^(recib[ií]|cobr[eé]|me\s+pagaron|me\s+depositaron|me\s+entraron|me\s+llegó|me\s+llego)\s+\$?([\d][\d.,]*)(?:\s+(.+))?$/i.exec(t);
+  if (reciboSimple) {
+    const monto = parseMonto(reciboSimple[2]);
+    if (monto !== null && monto > 0) {
+      const resto = (reciboSimple[3] ?? '').trim();
+      return {
+        tipo: 'ingreso',
+        monto,
+        categoria: '',
+        descripcion: resto,
+        origen: null,
+        destino: null,
+      };
+    }
+  }
+
+  // recibí / cobré + coloquial (lucas, k, etc.)
+  if (/^(recib[ií]|cobr[eé])\s+/i.test(t) && !/\bsueldo\b/i.test(t)) {
+    const montoR = buscarMontoEnTextoCompleto(t);
+    if (montoR != null && montoR > 0) {
+      return {
+        tipo: 'ingreso',
+        monto: montoR,
+        categoria: '',
+        descripcion: '',
         origen: null,
         destino: null,
       };
