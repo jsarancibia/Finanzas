@@ -759,17 +759,15 @@ export async function runApp({ getAuthHeaders, authUserId }) {
 
         const OPCION_NUEVA = "__nueva__";
 
-        function syncVisibilidadNuevaCuentaAD() {
-          const esNueva = adCuenta.value === OPCION_NUEVA;
-          adNueva.hidden = !esNueva;
-          if (esNueva) {
-            setTimeout(() => adNuevaBanco.focus(), 50);
-          }
-        }
-
         function poblarSelectCuentas() {
           adCuenta.innerHTML = "";
-          if (_cuentasCache.length > 0) {
+          if (_cuentasCache.length === 0) {
+            const optVacia = document.createElement("option");
+            optVacia.value = "";
+            optVacia.disabled = true;
+            optVacia.textContent = "Sin cuentas — créalas con «+ Crear cuenta»";
+            adCuenta.appendChild(optVacia);
+          } else {
             for (const c of _cuentasCache) {
               const opt = document.createElement("option");
               opt.value = JSON.stringify({ banco: c.banco, nombre: c.nombre });
@@ -777,15 +775,9 @@ export async function runApp({ getAuthHeaders, authUserId }) {
               adCuenta.appendChild(opt);
             }
           }
-          const optNueva = document.createElement("option");
-          optNueva.value = OPCION_NUEVA;
-          optNueva.textContent = "＋ Crear nueva cuenta";
-          adCuenta.appendChild(optNueva);
-          // Sin cuentas: la única opción queda seleccionada pero no dispara «change» → mostrar formulario nuevo
-          syncVisibilidadNuevaCuentaAD();
+          // El panel de nueva cuenta ya no existe en este modal
+          adNueva.hidden = true;
         }
-
-        adCuenta.addEventListener("change", syncVisibilidadNuevaCuentaAD);
 
         function abrirModalAgregarDinero(prefillBanco, prefillNombre) {
           poblarSelectCuentas();
@@ -835,63 +827,36 @@ export async function runApp({ getAuthHeaders, authUserId }) {
             return;
           }
 
+          let parsed = null;
+          try { parsed = JSON.parse(adCuenta.value); } catch { parsed = null; }
+          if (!parsed || !parsed.banco || !parsed.nombre) {
+            adError.textContent = "Selecciona una cuenta destino.";
+            adCuenta.focus();
+            return;
+          }
+
           adOk.disabled = true;
           adCancel.disabled = true;
           adOk.textContent = "Guardando…";
 
           try {
-            const esNueva = adCuenta.value === OPCION_NUEVA;
-
-            if (esNueva) {
-              // Caso B: crear cuenta + agregar dinero
-              const banco = adNuevaBanco.value.trim();
-              const nombre = adNuevaNombre.value.trim();
-              if (!banco || !nombre) {
-                adError.textContent = "Completa banco y nombre de la cuenta nueva.";
-                return;
-              }
-              // 1. Crear cuenta
-              const errCuenta = await ejecutarCrearCuenta(banco, nombre, adTipoNueva, null);
-              if (errCuenta) {
-                adError.textContent = errCuenta;
-                return;
-              }
-              // 2. Agregar dinero a la cuenta recién creada
-              const res = await authFetch("/api/ingreso-cuenta", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ monto, banco, cuentaProducto: nombre }),
-              });
-              const ct = res.headers.get("content-type") || "";
-              const data = ct.includes("application/json") ? await res.json() : null;
-              const texto = (data && typeof data.texto === "string")
-                ? data.texto
-                : (res.ok ? "Ingreso registrado." : "Error al registrar.");
-              appendBubble("assistant", texto, { warn: !res.ok });
+            const res = await authFetch("/api/ingreso-cuenta", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ monto, banco: parsed.banco, cuentaProducto: parsed.nombre }),
+            });
+            const ct = res.headers.get("content-type") || "";
+            const data = ct.includes("application/json") ? await res.json() : null;
+            const texto = (data && typeof data.texto === "string")
+              ? data.texto
+              : (res.ok ? "Ingreso registrado." : "Error al registrar.");
+            appendBubble("assistant", texto, { warn: !res.ok });
+            if (res.ok) {
               cerrarModalAgregarDinero();
-              await refreshResumenConCache();
             } else {
-              // Caso A: cuenta existente
-              let parsed;
-              try { parsed = JSON.parse(adCuenta.value); } catch { parsed = null; }
-              if (!parsed || !parsed.banco || !parsed.nombre) {
-                adError.textContent = "Selecciona una cuenta válida.";
-                return;
-              }
-              const res = await authFetch("/api/ingreso-cuenta", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ monto, banco: parsed.banco, cuentaProducto: parsed.nombre }),
-              });
-              const ct = res.headers.get("content-type") || "";
-              const data = ct.includes("application/json") ? await res.json() : null;
-              const texto = (data && typeof data.texto === "string")
-                ? data.texto
-                : (res.ok ? "Ingreso registrado." : "Error al registrar.");
-              appendBubble("assistant", texto, { warn: !res.ok });
-              cerrarModalAgregarDinero();
-              await refreshResumenConCache();
+              adError.textContent = texto;
             }
+            await refreshResumenConCache();
           } catch (err) {
             adError.textContent = err instanceof Error ? err.message : String(err);
           } finally {
