@@ -807,6 +807,253 @@
         cursor: not-allowed;
       }
 
+      /* ── Botones de acción global en sidebar ── */
+      .sidebar-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        padding: 0 0 0.75rem 0;
+      }
+
+      .btn-global-action {
+        flex: 1;
+        min-width: 0;
+        padding: 0.48rem 0.7rem;
+        border-radius: 10px;
+        border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+        background: color-mix(in srgb, var(--accent) 8%, transparent);
+        color: var(--accent);
+        font: inherit;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.18s ease, border-color 0.18s ease;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+      }
+
+      .btn-global-action:hover {
+        background: color-mix(in srgb, var(--accent) 16%, transparent);
+        border-color: var(--accent);
+      }
+
+      .btn-global-action.btn-global-action--cuenta {
+        border-color: color-mix(in srgb, var(--neon-ahorro) 38%, var(--border));
+        background: color-mix(in srgb, var(--neon-ahorro) 8%, transparent);
+        color: var(--neon-ahorro);
+      }
+
+      .btn-global-action.btn-global-action--cuenta:hover {
+        background: color-mix(in srgb, var(--neon-ahorro) 16%, transparent);
+        border-color: var(--neon-ahorro);
+      }
+
+      /* ── Modal overlay ── */
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(4px);
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+        animation: fadeIn 0.15s ease;
+      }
+
+      .modal-overlay[hidden] { display: none; }
+
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+
+      .modal-box {
+        background: var(--bg-mid);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.45);
+        padding: 1.75rem 1.75rem 1.5rem;
+        width: 100%;
+        max-width: 400px;
+        animation: slideUp 0.18s ease;
+        position: relative;
+      }
+
+      @keyframes slideUp {
+        from { transform: translateY(12px); opacity: 0; }
+        to   { transform: translateY(0);    opacity: 1; }
+      }
+
+      .modal-box__title {
+        font-family: var(--font);
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0 0 1.25rem 0;
+        padding-right: 2rem;
+      }
+
+      .modal-close {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        font-size: 1rem;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        transition: background 0.15s ease, color 0.15s ease;
+        line-height: 1;
+        padding: 0;
+      }
+
+      .modal-close:hover {
+        background: color-mix(in srgb, var(--err) 12%, transparent);
+        color: var(--err);
+      }
+
+      .modal-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        margin-bottom: 0.9rem;
+      }
+
+      .modal-field label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .modal-input,
+      .modal-select {
+        padding: 0.55rem 0.75rem;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: color-mix(in srgb, #060810 88%, transparent);
+        color: var(--text);
+        font: inherit;
+        font-size: 0.9rem;
+        transition: border-color 0.18s ease, box-shadow 0.18s ease;
+        width: 100%;
+      }
+
+      html[data-theme="light"] .modal-input,
+      html[data-theme="light"] .modal-select {
+        background: #fff;
+      }
+
+      .modal-input:focus,
+      .modal-select:focus {
+        outline: none;
+        border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+        box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--accent) 15%, transparent);
+      }
+
+      .modal-select option {
+        background: var(--bg-mid);
+        color: var(--text);
+      }
+
+      .modal-new-cuenta {
+        margin-top: 0.5rem;
+        padding: 0.9rem;
+        border-radius: 12px;
+        border: 1px solid color-mix(in srgb, var(--neon-ahorro) 25%, var(--border));
+        background: color-mix(in srgb, var(--neon-ahorro) 5%, transparent);
+      }
+
+      .modal-new-cuenta[hidden] { display: none; }
+
+      .modal-tipo-row {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .modal-tipo-btn {
+        flex: 1;
+        padding: 0.45rem 0.5rem;
+        border-radius: 9px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+
+      .modal-tipo-btn[aria-pressed="true"] {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 14%, transparent);
+        color: var(--accent);
+      }
+
+      .modal-error {
+        font-size: 0.8rem;
+        color: var(--err);
+        margin-top: 0.3rem;
+        min-height: 1.1em;
+      }
+
+      .modal-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1.1rem;
+      }
+
+      .modal-btn-cancel {
+        flex: 1;
+        padding: 0.55rem 0.7rem;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s ease;
+      }
+
+      .modal-btn-cancel:hover { background: color-mix(in srgb, var(--border) 60%, transparent); }
+
+      .modal-btn-ok {
+        flex: 2;
+        padding: 0.55rem 0.9rem;
+        border-radius: 10px;
+        border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+        background: linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--accent) 90%, #fff) 0%,
+          var(--accent-dim) 100%
+        );
+        color: #020308;
+        font: inherit;
+        font-size: 0.9rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: filter 0.18s ease, opacity 0.18s ease;
+      }
+
+      .modal-btn-ok:hover:not(:disabled) { filter: brightness(1.06); }
+
+      .modal-btn-ok:disabled,
+      .modal-btn-cancel:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
       @media (prefers-reduced-motion: reduce) {
         .fin-card,
         button[type="submit"] {
@@ -1497,6 +1744,10 @@
         <div class="sidebar-intro">
           <h2>Tu dinero</h2>
           <p class="sub">Saldos y listas vienen del servidor; los totales de abajo son esos mismos datos.</p>
+          <div class="sidebar-actions">
+            <button type="button" id="btn-abrir-agregar-dinero" class="btn-global-action" title="Agregar dinero a una cuenta">+ Agregar dinero</button>
+            <button type="button" id="btn-abrir-crear-cuenta" class="btn-global-action btn-global-action--cuenta" title="Crear una nueva cuenta">+ Crear cuenta</button>
+          </div>
           <div id="resumen-totales" class="sidebar-totales" aria-label="Totales de disponible y ahorro"></div>
           <div id="resumen-status" aria-live="polite"></div>
         </div>
@@ -1531,6 +1782,74 @@
       </main>
     </div>
     </div>
+    <!-- Modal: Agregar dinero -->
+    <div id="modal-agregar-dinero" class="modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="modal-ad-title">
+      <div class="modal-box">
+        <button type="button" class="modal-close" id="modal-ad-close" aria-label="Cerrar">✕</button>
+        <h2 class="modal-box__title" id="modal-ad-title">Agregar dinero</h2>
+        <div class="modal-field">
+          <label for="modal-ad-monto">Monto</label>
+          <input type="number" id="modal-ad-monto" class="modal-input" placeholder="Ej: 150000" min="1" step="1" />
+        </div>
+        <div class="modal-field">
+          <label for="modal-ad-cuenta">Cuenta destino</label>
+          <select id="modal-ad-cuenta" class="modal-select">
+            <option value="">Cargando cuentas…</option>
+          </select>
+        </div>
+        <div id="modal-ad-nueva" class="modal-new-cuenta" hidden>
+          <div class="modal-field">
+            <label for="modal-ad-nueva-banco">Banco</label>
+            <input type="text" id="modal-ad-nueva-banco" class="modal-input" placeholder="Ej: Banco Estado" autocomplete="off" />
+          </div>
+          <div class="modal-field">
+            <label for="modal-ad-nueva-nombre">Nombre de la cuenta</label>
+            <input type="text" id="modal-ad-nueva-nombre" class="modal-input" placeholder="Ej: Cuenta RUT" autocomplete="off" />
+          </div>
+          <div class="modal-field">
+            <label>Tipo</label>
+            <div class="modal-tipo-row">
+              <button type="button" class="modal-tipo-btn" data-tipo="disponible" aria-pressed="true">Disponible</button>
+              <button type="button" class="modal-tipo-btn" data-tipo="ahorro" aria-pressed="false">Ahorro</button>
+            </div>
+          </div>
+        </div>
+        <p id="modal-ad-error" class="modal-error"></p>
+        <div class="modal-actions">
+          <button type="button" class="modal-btn-cancel" id="modal-ad-cancel">Cancelar</button>
+          <button type="button" class="modal-btn-ok" id="modal-ad-ok">Confirmar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Crear cuenta -->
+    <div id="modal-crear-cuenta" class="modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="modal-cc-title">
+      <div class="modal-box">
+        <button type="button" class="modal-close" id="modal-cc-close" aria-label="Cerrar">✕</button>
+        <h2 class="modal-box__title" id="modal-cc-title">Crear cuenta</h2>
+        <div class="modal-field">
+          <label for="modal-cc-banco">Banco</label>
+          <input type="text" id="modal-cc-banco" class="modal-input" placeholder="Ej: Banco Estado" autocomplete="off" />
+        </div>
+        <div class="modal-field">
+          <label for="modal-cc-nombre">Nombre de la cuenta</label>
+          <input type="text" id="modal-cc-nombre" class="modal-input" placeholder="Ej: Cuenta RUT" autocomplete="off" />
+        </div>
+        <div class="modal-field">
+          <label>Tipo</label>
+          <div class="modal-tipo-row">
+            <button type="button" class="modal-tipo-btn" data-tipo="disponible" aria-pressed="true">Disponible</button>
+            <button type="button" class="modal-tipo-btn" data-tipo="ahorro" aria-pressed="false">Ahorro</button>
+          </div>
+        </div>
+        <p id="modal-cc-error" class="modal-error"></p>
+        <div class="modal-actions">
+          <button type="button" class="modal-btn-cancel" id="modal-cc-cancel">Cancelar</button>
+          <button type="button" class="modal-btn-ok" id="modal-cc-ok">Crear cuenta</button>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="/auth-shell.js"></script>
     <script>
       (function () {

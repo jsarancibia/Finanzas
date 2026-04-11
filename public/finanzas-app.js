@@ -604,9 +604,301 @@ export async function runApp({ getAuthHeaders, authUserId }) {
             appendSystem("Empieza registrando un ingreso (ej: recibí mi sueldo 560.000). Luego puedes distribuirlo entre tus cuentas y registrar gastos.");
           }
           input.focus();
-          void refreshResumen();
         }
 
+        /* ══════════════════════════════════════════════════
+           MODALES — arquitectura13
+           ══════════════════════════════════════════════════ */
+
+        // Lista de cuentas cacheada desde el último refreshResumen
+        let _cuentasCache = [];
+
+        // Sobreescribir refreshResumen para capturar cuentas disponibles + ahorro
+        const _refreshResumenOrig = refreshResumen;
+        async function refreshResumenConCache() {
+          await _refreshResumenOrig();
+          try {
+            const res = await authFetch("/api/resumen-cuentas", { cache: "no-store" });
+            const ct = res.headers.get("content-type") || "";
+            const data = ct.includes("application/json") ? await res.json() : null;
+            if (data) {
+              const disp = Array.isArray(data.seccion_disponible) ? data.seccion_disponible : [];
+              const ahr = Array.isArray(data.seccion_ahorro) ? data.seccion_ahorro : [];
+              _cuentasCache = [...disp, ...ahr].filter((c) => c && c.banco && c.nombre);
+            }
+          } catch { /* silent */ }
+        }
+
+        // ── helpers de modal ──
+        function abrirModal(modalEl, primerInput) {
+          modalEl.hidden = false;
+          modalEl.removeAttribute("hidden");
+          document.body.style.overflow = "hidden";
+          if (primerInput) setTimeout(() => primerInput.focus(), 80);
+        }
+
+        function cerrarModal(modalEl) {
+          modalEl.hidden = true;
+          document.body.style.overflow = "";
+        }
+
+        function modalCerrarAlClickFuera(e, modalEl) {
+          if (e.target === modalEl) cerrarModal(modalEl);
+        }
+
+        function setupTipoButtons(container, getValFn, setValFn) {
+          let current = "disponible";
+          setValFn(current);
+          container.querySelectorAll(".modal-tipo-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              current = btn.dataset.tipo;
+              setValFn(current);
+              container.querySelectorAll(".modal-tipo-btn").forEach((b) => {
+                b.setAttribute("aria-pressed", String(b === btn));
+              });
+            });
+          });
+          if (getValFn) getValFn.ref = () => current;
+        }
+
+        // ── Modal: Crear cuenta ──
+        const modalCC = document.getElementById("modal-crear-cuenta");
+        const ccBanco = document.getElementById("modal-cc-banco");
+        const ccNombre = document.getElementById("modal-cc-nombre");
+        const ccError = document.getElementById("modal-cc-error");
+        const ccOk = document.getElementById("modal-cc-ok");
+        const ccCancel = document.getElementById("modal-cc-cancel");
+        const ccClose = document.getElementById("modal-cc-close");
+
+        let ccTipo = "disponible";
+        setupTipoButtons(modalCC, null, (v) => { ccTipo = v; });
+
+        function abrirModalCrearCuenta(prefillBanco, prefillNombre) {
+          if (prefillBanco) ccBanco.value = prefillBanco;
+          if (prefillNombre) ccNombre.value = prefillNombre;
+          ccError.textContent = "";
+          abrirModal(modalCC, ccBanco);
+        }
+
+        function cerrarModalCrearCuenta() {
+          cerrarModal(modalCC);
+          ccBanco.value = "";
+          ccNombre.value = "";
+          ccError.textContent = "";
+          modalCC.querySelectorAll(".modal-tipo-btn").forEach((b) => {
+            b.setAttribute("aria-pressed", String(b.dataset.tipo === "disponible"));
+          });
+          ccTipo = "disponible";
+        }
+
+        async function ejecutarCrearCuenta(banco, nombre, tipo, onSuccess) {
+          if (!banco.trim() || !nombre.trim()) {
+            return "Completa banco y nombre de la cuenta.";
+          }
+          const res = await authFetch("/api/crear-cuenta", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ banco, nombre, tipo }),
+          });
+          const ct = res.headers.get("content-type") || "";
+          const data = ct.includes("application/json") ? await res.json() : null;
+          if (!res.ok || !data?.ok) {
+            return (data && data.error) || "No se pudo crear la cuenta.";
+          }
+          if (onSuccess) onSuccess(data);
+          return null;
+        }
+
+        ccClose.addEventListener("click", cerrarModalCrearCuenta);
+        ccCancel.addEventListener("click", cerrarModalCrearCuenta);
+        modalCC.addEventListener("click", (e) => modalCerrarAlClickFuera(e, modalCC));
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !modalCC.hidden) cerrarModalCrearCuenta(); });
+
+        ccOk.addEventListener("click", async () => {
+          ccError.textContent = "";
+          ccOk.disabled = true;
+          ccOk.textContent = "Creando…";
+          const err = await ejecutarCrearCuenta(ccBanco.value.trim(), ccNombre.value.trim(), ccTipo, (data) => {
+            appendBubble("assistant", `✔ Cuenta creada: ${data.nombre} (${data.banco} · ${data.tipo})`, { warn: false });
+          });
+          if (err) {
+            ccError.textContent = err;
+            ccOk.disabled = false;
+            ccOk.textContent = "Crear cuenta";
+            return;
+          }
+          cerrarModalCrearCuenta();
+          ccOk.disabled = false;
+          ccOk.textContent = "Crear cuenta";
+          await refreshResumenConCache();
+        });
+
+        // ── Modal: Agregar dinero ──
+        const modalAD = document.getElementById("modal-agregar-dinero");
+        const adMonto = document.getElementById("modal-ad-monto");
+        const adCuenta = document.getElementById("modal-ad-cuenta");
+        const adNueva = document.getElementById("modal-ad-nueva");
+        const adNuevaBanco = document.getElementById("modal-ad-nueva-banco");
+        const adNuevaNombre = document.getElementById("modal-ad-nueva-nombre");
+        const adError = document.getElementById("modal-ad-error");
+        const adOk = document.getElementById("modal-ad-ok");
+        const adCancel = document.getElementById("modal-ad-cancel");
+        const adClose = document.getElementById("modal-ad-close");
+
+        let adTipoNueva = "disponible";
+        setupTipoButtons(adNueva, null, (v) => { adTipoNueva = v; });
+
+        const OPCION_NUEVA = "__nueva__";
+
+        function poblarSelectCuentas() {
+          adCuenta.innerHTML = "";
+          if (_cuentasCache.length > 0) {
+            for (const c of _cuentasCache) {
+              const opt = document.createElement("option");
+              opt.value = JSON.stringify({ banco: c.banco, nombre: c.nombre });
+              opt.textContent = `${c.nombre} · ${c.banco}`;
+              adCuenta.appendChild(opt);
+            }
+          }
+          const optNueva = document.createElement("option");
+          optNueva.value = OPCION_NUEVA;
+          optNueva.textContent = "＋ Crear nueva cuenta";
+          adCuenta.appendChild(optNueva);
+        }
+
+        adCuenta.addEventListener("change", () => {
+          const esNueva = adCuenta.value === OPCION_NUEVA;
+          adNueva.hidden = !esNueva;
+          if (esNueva) adNuevaBanco.focus();
+        });
+
+        function abrirModalAgregarDinero(prefillBanco, prefillNombre) {
+          poblarSelectCuentas();
+          if (prefillBanco && prefillNombre) {
+            // Buscar opción coincidente
+            for (const opt of adCuenta.options) {
+              if (opt.value !== OPCION_NUEVA) {
+                try {
+                  const v = JSON.parse(opt.value);
+                  if (v.banco === prefillBanco && v.nombre === prefillNombre) {
+                    adCuenta.value = opt.value;
+                    adNueva.hidden = true;
+                    break;
+                  }
+                } catch { /* ignore */ }
+              }
+            }
+          }
+          adError.textContent = "";
+          abrirModal(modalAD, adMonto);
+        }
+
+        function cerrarModalAgregarDinero() {
+          cerrarModal(modalAD);
+          adMonto.value = "";
+          adNueva.hidden = true;
+          adNuevaBanco.value = "";
+          adNuevaNombre.value = "";
+          adError.textContent = "";
+          adNueva.querySelectorAll(".modal-tipo-btn").forEach((b) => {
+            b.setAttribute("aria-pressed", String(b.dataset.tipo === "disponible"));
+          });
+          adTipoNueva = "disponible";
+        }
+
+        adClose.addEventListener("click", cerrarModalAgregarDinero);
+        adCancel.addEventListener("click", cerrarModalAgregarDinero);
+        modalAD.addEventListener("click", (e) => modalCerrarAlClickFuera(e, modalAD));
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !modalAD.hidden) cerrarModalAgregarDinero(); });
+
+        adOk.addEventListener("click", async () => {
+          adError.textContent = "";
+          const monto = Math.round(Number(adMonto.value));
+          if (!monto || monto <= 0) {
+            adError.textContent = "Ingresa un monto válido.";
+            adMonto.focus();
+            return;
+          }
+
+          adOk.disabled = true;
+          adCancel.disabled = true;
+          adOk.textContent = "Guardando…";
+
+          try {
+            const esNueva = adCuenta.value === OPCION_NUEVA;
+
+            if (esNueva) {
+              // Caso B: crear cuenta + agregar dinero
+              const banco = adNuevaBanco.value.trim();
+              const nombre = adNuevaNombre.value.trim();
+              if (!banco || !nombre) {
+                adError.textContent = "Completa banco y nombre de la cuenta nueva.";
+                return;
+              }
+              // 1. Crear cuenta
+              const errCuenta = await ejecutarCrearCuenta(banco, nombre, adTipoNueva, null);
+              if (errCuenta) {
+                adError.textContent = errCuenta;
+                return;
+              }
+              // 2. Agregar dinero a la cuenta recién creada
+              const res = await authFetch("/api/ingreso-cuenta", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ monto, banco, cuentaProducto: nombre }),
+              });
+              const ct = res.headers.get("content-type") || "";
+              const data = ct.includes("application/json") ? await res.json() : null;
+              const texto = (data && typeof data.texto === "string")
+                ? data.texto
+                : (res.ok ? "Ingreso registrado." : "Error al registrar.");
+              appendBubble("assistant", texto, { warn: !res.ok });
+              cerrarModalAgregarDinero();
+              await refreshResumenConCache();
+            } else {
+              // Caso A: cuenta existente
+              let parsed;
+              try { parsed = JSON.parse(adCuenta.value); } catch { parsed = null; }
+              if (!parsed || !parsed.banco || !parsed.nombre) {
+                adError.textContent = "Selecciona una cuenta válida.";
+                return;
+              }
+              const res = await authFetch("/api/ingreso-cuenta", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ monto, banco: parsed.banco, cuentaProducto: parsed.nombre }),
+              });
+              const ct = res.headers.get("content-type") || "";
+              const data = ct.includes("application/json") ? await res.json() : null;
+              const texto = (data && typeof data.texto === "string")
+                ? data.texto
+                : (res.ok ? "Ingreso registrado." : "Error al registrar.");
+              appendBubble("assistant", texto, { warn: !res.ok });
+              cerrarModalAgregarDinero();
+              await refreshResumenConCache();
+            }
+          } catch (err) {
+            adError.textContent = err instanceof Error ? err.message : String(err);
+          } finally {
+            adOk.disabled = false;
+            adCancel.disabled = false;
+            adOk.textContent = "Confirmar";
+          }
+        });
+
+        // ── Botones globales ──
+        const btnAbrirAgregarDinero = document.getElementById("btn-abrir-agregar-dinero");
+        const btnAbrirCrearCuenta = document.getElementById("btn-abrir-crear-cuenta");
+
+        if (btnAbrirAgregarDinero) {
+          btnAbrirAgregarDinero.addEventListener("click", () => abrirModalAgregarDinero());
+        }
+        if (btnAbrirCrearCuenta) {
+          btnAbrirCrearCuenta.addEventListener("click", () => abrirModalCrearCuenta());
+        }
+
+        // Carga inicial con cache
         await inicializarChatUI();
+        await refreshResumenConCache();
 }
 
