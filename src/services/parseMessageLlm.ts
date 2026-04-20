@@ -1,39 +1,19 @@
+import { obtenerUltimosMensajesParaContexto } from './memoriaContexto.js';
 import { destinoParaRegistro, type ParsedMovimiento } from './parseMessage.js';
 import { inferCategoriaGasto } from './categoriasMovimiento.js';
-import { completarChat } from './llmClient.js';
+import { completarChat, type ChatMessage } from './llmClient.js';
 
-/**
- * Una sola tarea: extraer estructura financiera. Sin historial, sin saldos, salida JSON estricta.
- */
-const SYSTEM_PARSE = `Tarea única: del mensaje en español (Chile, CLP) extrae UNA orden financiera.
-Responde SOLO un objeto JSON válido, sin markdown, sin texto extra.
+const SYSTEM_PARSE =
+  'Extrae tipo, monto, categoria, banco, cuenta_producto, descripcion y referencia. ' +
+  'Permite acciones como borrar o corregir basadas en contexto reciente. ' +
+  'Responde SOLO JSON con: ' +
+  '{"tipo":"gasto|ingreso|ahorro|asignacion|borrar|corregir|none","monto":number|null,"categoria":string|null,"banco":string|null,"cuenta_producto":string|null,"descripcion":string|null,"referencia":"ultima_operacion"|null}. ' +
+  'No inventes bancos. Usa "otros" solo si no hay mejor categoria. ' +
+  'zapatillas->vestuario, uber->transporte, pizza/comida->comida.';
 
-Claves requeridas: tipo, monto, categoria, descripcion, banco, cuenta_producto.
-- tipo: "ingreso" | "gasto" | "ahorro" | null  (null si no es una orden financiera clara)
-- monto: entero positivo en pesos CLP, o null si no hay cifra
-- categoria: categoría normalizada. Para gastos elige SIEMPRE la más específica de esta lista:
-  "comida" | "transporte" | "vestuario" | "salud" | "hogar" | "entretenimiento" |
-  "educación" | "inversión" | "salario" | "otros"
-  Ejemplos: zapatillas/ropa/polera → "vestuario"; uber/taxi/bencina → "transporte";
-  pizza/almuerzo/supermercado → "comida"; médico/farmacia → "salud";
-  cine/netflix/spotify → "entretenimiento"; arriendo/luz/agua → "hogar".
-  Reserva "otros" solo si ninguna categoría encaja.
-- descripcion: objeto específico del gasto (ej. "zapatillas", "pizza"), "" si no aplica
-- banco: banco/billetera SOLO si aparece textualmente en el mensaje
-  (ej. "Mercado Pago", "Banco Estado", "MACH", "Tenpo"); null si no se menciona
-- cuenta_producto: subcuenta SOLO si se menciona (ej. "Cuenta RUT"); null si no aplica
-
-REGLA: si el mensaje dice «desde X», «con X» o «de X» donde X es un banco → extrae banco.
-Ejemplo: "gasté 10000 en zapatillas desde mercado pago"
-→ {"tipo":"gasto","monto":10000,"categoria":"vestuario","descripcion":"zapatillas","banco":"Mercado Pago","cuenta_producto":null}
-
-Coloquial CLP: lucas/palos=miles (80 lucas→80000); Nk→N×1000; cien mil→100000.
-Traspaso «de X a Y» con dos cuentas → tipo null.
-Asignación «del disponible sin cuenta» → tipo null.
-No calcules saldos. No des consejos. No inventes datos.`;
-
-/** Límite de caracteres enviados al modelo. */
-const MAX_MENSAJE_LLM = 500;
+/** Límite corto para mantener bajo el consumo de tokens. */
+const MAX_MENSAJE_LLM = 220;
+const MAX_CONTEXTO_LLM = 140;
 
 /** Cache en memoria: evita llamadas repetidas para el mismo mensaje. */
 const llmCache = new Map<string, ParsedMovimiento | null>();
@@ -41,6 +21,56 @@ const MAX_CACHE_SIZE = 150;
 
 function cacheKey(text: string): string {
   return text.trim().toLowerCase().normalize('NFC');
+}
+
+function recortarPlano(text: string, max: number): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
+}
+
+function requiereContextoReciente(text: string): boolean {
+  const t = text.toLowerCase().normalize('NFC');
+  return /\b(borra|borra[r]?|elimina|eliminar|corrige|corregir|ajusta|ajustar|eso|esa|ese|lo anterior|últim[oa]|ultimo|anterior)\b/u.test(
+    t,
+  );
+}
+
+function construirMensajesModelo(user: string): { messages: ChatMessage[]; usaContexto: boolean } {
+  const current = recortarPlano(user, MAX_MENSAJE_LLM);
+  if (!requiereContextoReciente(current)) {
+    return {
+      usaContexto: false,
+      messages: [
+        { role: 'system', content: SYSTEM_PARSE },
+        { role: 'user', content: current },
+      ],
+    };
+  }
+
+  const recientes = obtenerUltimosMensajesParaContexto();
+  const ultimos = recientes.slice(-2);
+  const contexto = ultimos
+    .map((m) => `${m.rol}: ${recortarPlano(m.texto, MAX_CONTEXTO_LLM)}`)
+    .join('\n');
+
+  if (!contexto) {
+    return {
+      usaContexto: false,
+      messages: [
+        { role: 'system', content: SYSTEM_PARSE },
+        { role: 'user', content: current },
+      ],
+    };
+  }
+
+  return {
+    usaContexto: true,
+    messages: [
+      { role: 'system', content: SYSTEM_PARSE },
+      { role: 'assistant', content: `Contexto reciente:\n${contexto}` },
+      { role: 'user', content: current },
+    ],
+  };
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -87,31 +117,31 @@ export async function parseMessageWithLlm(text: string): Promise<ParsedMovimient
     return null;
   }
 
-  // Cache: devuelve resultado previo para mensajes idénticos
   const key = cacheKey(user);
-  if (llmCache.has(key)) {
+  const { messages, usaContexto } = construirMensajesModelo(user);
+
+  // Cache solo para mensajes autocontenidos; evita cachear referencias tipo "corrige eso".
+  if (!usaContexto && llmCache.has(key)) {
     console.log('[LLM] cache hit:', key.slice(0, 60));
     return llmCache.get(key) ?? null;
   }
 
-  const recorte = user.length > MAX_MENSAJE_LLM ? `${user.slice(0, MAX_MENSAJE_LLM)}…` : user;
-  console.log('[LLM] EXECUTED:', recorte.slice(0, 80));
+  console.log('[LLM] EXECUTED:', recortarPlano(user, 80));
 
   const raw = await completarChat(
-    [
-      { role: 'system', content: SYSTEM_PARSE },
-      { role: 'user', content: recorte },
-    ],
+    messages,
     {
       jsonMode: true,
-      maxTokens: 150,
+      maxTokens: 120,
       temperature: 0.1,
     },
   );
 
   if (!raw) {
     console.warn('[LLM] sin respuesta (API falló o sin key) → fallback regex');
-    llmCache.set(key, null);
+    if (!usaContexto) {
+      llmCache.set(key, null);
+    }
     return null;
   }
 
@@ -123,46 +153,55 @@ export async function parseMessageWithLlm(text: string): Promise<ParsedMovimient
     parsed = JSON.parse(textoJsonBruto(raw)) as unknown;
   } catch {
     console.warn('[LLM] JSON inválido → fallback regex');
-    llmCache.set(key, null);
+    if (!usaContexto) {
+      llmCache.set(key, null);
+    }
     return null;
   }
 
   if (!isRecord(parsed)) {
-    llmCache.set(key, null);
+    if (!usaContexto) {
+      llmCache.set(key, null);
+    }
     return null;
   }
 
-  // tipo null o desconocido → no es una orden financiera, fallback regex
   const tipo = parsed.tipo;
   if (tipo === null || tipo === undefined || tipo === 'none') {
     console.log('[LLM] tipo=null/none → fallback regex');
-    llmCache.set(key, null);
+    if (!usaContexto) {
+      llmCache.set(key, null);
+    }
     return null;
   }
-  if (tipo !== 'ingreso' && tipo !== 'gasto' && tipo !== 'ahorro') {
+  if (tipo === 'borrar' || tipo === 'corregir') {
+    console.log('[LLM] accion contextual → fallback a correcciones/reglas locales');
+    return null;
+  }
+  if (tipo !== 'ingreso' && tipo !== 'gasto' && tipo !== 'ahorro' && tipo !== 'asignacion') {
     console.warn('[LLM] tipo desconocido:', tipo, '→ fallback regex');
-    llmCache.set(key, null);
+    if (!usaContexto) {
+      llmCache.set(key, null);
+    }
     return null;
   }
 
-  // monto inválido → fallback regex
   const monto = parsed.monto;
   if (typeof monto !== 'number' || !Number.isFinite(monto) || monto <= 0) {
     console.warn('[LLM] monto inválido:', monto, '→ fallback regex');
-    llmCache.set(key, null);
+    if (!usaContexto) {
+      llmCache.set(key, null);
+    }
     return null;
   }
 
   const categoriaRaw = typeof parsed.categoria === 'string' ? parsed.categoria : '';
   const descripcion = typeof parsed.descripcion === 'string' ? parsed.descripcion : '';
 
-  // Refinar categoría: si LLM devuelve "otros", intentar inferir localmente
   const categoria = refinarCategoria(categoriaRaw, descripcion, user);
 
-  // Anti-alucinación: anular banco si no aparece en el texto original
   const bancoRaw = typeof parsed.banco === 'string' ? parsed.banco.trim() : null;
-  const banco =
-    bancoRaw && bancoMencionadoEnTexto(bancoRaw, user) ? bancoRaw : null;
+  const banco = bancoRaw && bancoMencionadoEnTexto(bancoRaw, user) ? bancoRaw : null;
 
   if (bancoRaw && !banco) {
     console.warn('[LLM] banco ignorado (no está en el texto):', bancoRaw);
@@ -173,7 +212,7 @@ export async function parseMessageWithLlm(text: string): Promise<ParsedMovimient
     cuentaRaw === null || cuentaRaw === undefined ? null : String(cuentaRaw).trim() || null;
 
   const base: ParsedMovimiento = {
-    tipo,
+    tipo: tipo === 'asignacion' ? 'ingreso' : tipo,
     monto,
     categoria,
     descripcion,
@@ -185,12 +224,13 @@ export async function parseMessageWithLlm(text: string): Promise<ParsedMovimient
 
   const result: ParsedMovimiento = { ...base, destino: destinoParaRegistro(base) };
 
-  // Guardar en cache (con límite de tamaño)
-  if (llmCache.size >= MAX_CACHE_SIZE) {
-    const firstKey = llmCache.keys().next().value;
-    if (firstKey !== undefined) llmCache.delete(firstKey);
+  if (!usaContexto) {
+    if (llmCache.size >= MAX_CACHE_SIZE) {
+      const firstKey = llmCache.keys().next().value;
+      if (firstKey !== undefined) llmCache.delete(firstKey);
+    }
+    llmCache.set(key, result);
   }
-  llmCache.set(key, result);
 
   return result;
 }
