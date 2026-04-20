@@ -61,6 +61,47 @@ export type ResultadoReglaGastoCuenta =
   | { accion: 'aplicar'; parsed: ParsedMovimiento }
   | { accion: 'preguntar'; texto: string };
 
+function normCuentaLabel(v: string | null | undefined): string {
+  return (v ?? '')
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function completarGastoConCoincidenciaUnica(
+  parsed: ParsedMovimiento,
+  cuentas: CuentaDisponibleSaldo[],
+): ParsedMovimiento | null {
+  const banco = parsed.banco?.trim() || null;
+  const cuenta = parsed.cuentaProducto?.trim() || null;
+  if (!banco && !cuenta) {
+    return null;
+  }
+
+  const nb = normCuentaLabel(banco);
+  const nc = normCuentaLabel(cuenta);
+  const candidatos = cuentas.filter((row) => {
+    const rowBanco = normCuentaLabel(row.bancoNombre);
+    const rowCuenta = normCuentaLabel(row.cuentaNombre);
+    const okBanco = !nb || rowBanco === nb || rowCuenta === nb;
+    const okCuenta = !nc || rowCuenta === nc || rowBanco === nc;
+    return okBanco && okCuenta;
+  });
+
+  if (candidatos.length !== 1) {
+    return null;
+  }
+
+  const unico = candidatos[0];
+  const enriched: ParsedMovimiento = {
+    ...parsed,
+    banco: unico.bancoNombre,
+    cuentaProducto: unico.cuentaNombre,
+  };
+  return { ...enriched, destino: destinoParaRegistro(enriched) };
+}
+
 /**
  * Gasto sin banco+cuenta: si hay varias cuentas disponibles con saldo, pedir origen;
  * si hay una sola, enlazarla al movimiento para que el descuento cuadre con el panel.
@@ -81,6 +122,10 @@ export async function resolverGastoCuentaAntesDeRpc(
   const cuentas = await listarDisponiblesConSaldoPositivo(authUserId);
   if (cuentas.length === 0) {
     return { accion: 'aplicar', parsed };
+  }
+  const parcial = completarGastoConCoincidenciaUnica(parsed, cuentas);
+  if (parcial) {
+    return { accion: 'aplicar', parsed: parcial };
   }
   if (cuentas.length === 1) {
     const x = cuentas[0];
