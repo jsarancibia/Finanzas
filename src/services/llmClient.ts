@@ -1,6 +1,6 @@
 /**
- * Cliente HTTP para Grok (xAI): `POST {baseUrl}/chat/completions`.
- * Por defecto `https://api.x.ai/v1` y un modelo Grok; sobreescribe con `LLM_BASE_URL` / `LLM_MODEL`.
+ * Cliente HTTP OpenAI-compatible: Groq (gsk_…) o xAI Grok (xai-…).
+ * Auto-detecta el proveedor por el prefijo de la key; sobreescribe con LLM_BASE_URL / LLM_MODEL.
  */
 
 export interface ChatMessage {
@@ -13,8 +13,13 @@ function getConfig(): { apiKey: string; baseUrl: string; model: string } | null 
   if (!apiKey) {
     return null;
   }
-  const baseUrl = (process.env.LLM_BASE_URL ?? 'https://api.x.ai/v1').replace(/\/$/, '');
-  const model = process.env.LLM_MODEL?.trim() || 'grok-3-mini';
+  // Groq keys comienzan con gsk_; xAI con xai-
+  const isGroq = apiKey.startsWith('gsk_');
+  const defaultUrl = isGroq ? 'https://api.groq.com/openai/v1' : 'https://api.x.ai/v1';
+  const defaultModel = isGroq ? 'llama-3.1-8b-instant' : 'grok-3-mini';
+  const baseUrl = (process.env.LLM_BASE_URL ?? defaultUrl).replace(/\/$/, '');
+  const model = process.env.LLM_MODEL?.trim() || defaultModel;
+  console.log(`[LLM] config: ${isGroq ? 'Groq' : 'xAI'} | model=${model} | url=${baseUrl}`);
   return { apiKey, baseUrl, model };
 }
 
@@ -62,7 +67,8 @@ export async function completarChat(
 
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`LLM HTTP ${res.status}: ${errText.slice(0, 200)}`);
+      console.error(`[LLM] HTTP ${res.status}: ${errText.slice(0, 300)}`);
+      return null;
     }
 
     const data = (await res.json()) as {
@@ -70,7 +76,8 @@ export async function completarChat(
     };
     const text = data.choices?.[0]?.message?.content?.trim();
     return text ?? null;
-  } catch {
+  } catch (err) {
+    console.error('[LLM] error de red:', err instanceof Error ? err.message : String(err));
     return null;
   }
 }

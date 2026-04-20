@@ -535,11 +535,14 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
       const mapped = mapearOrigenGastoDesdeFrag(origenFrag);
       const extDesde = extractLeadingMonto(headDesde);
       if (mapped && extDesde && extDesde.monto > 0) {
-        const cat = tailCat ? inferCategoriaGasto(tailCat) : 'otros';
+        // Caso «gasté 10000 en zapatillas desde mp»: tailCat está vacío porque la categoría
+        // viene antes del «desde», en el resto de headDesde (extDesde.rest = " en zapatillas").
+        const catFrag = tailCat || extDesde.rest.replace(/^\s*en\s+/i, '').trim();
+        const cat = catFrag ? inferCategoriaGasto(catFrag) : 'otros';
         const descripcion =
-          tailCat &&
-          (cat === 'otros' || /y\s+|varias/i.test(tailCat) || tailCat.split(/\s+/).length > 1)
-            ? tailCat
+          catFrag &&
+          (cat === 'otros' || /y\s+|varias/i.test(catFrag) || catFrag.split(/\s+/).length > 1)
+            ? catFrag
             : '';
         const base: ParsedMovimiento = {
           tipo: 'gasto',

@@ -5,9 +5,9 @@
 const TRANS = /uber|taxi|colectivo|micro|metro|bencina|combustible|peaje|estacionamiento|transporte|locomoci[oó]n/i;
 const FOOD =
   /comida|restaurante?|almuerzo|cena|supermercado|delivery|uber\s*eats|rappi|pedidos/i;
-/** Ropa y calzado (Chile): polerón, zapatillas, etc. */
+/** Ropa y calzado (Chile): polerón, zapatillas, etc. → categoría "vestuario". */
 const ROPA =
-  /poler[oó]n|polera|poler\b|zapatill|zapatos?|ropa\b|vestuario|chaquet|pantal[oó]n|jean|jeans|camiseta|gorro|bufanda|medias|calcetines/i;
+  /poler[oó]n|polera|poler\b|zapatill|zapatos?|ropa\b|vestuario|chaquet|pantal[oó]n|jean|jeans|camiseta|gorro|bufanda|medias|calcetines|prenda|calzado|tenis|camisa/i;
 const OCIO = /cine|netflix|spotify|streaming|videojuego|bar|ocio|salida/i;
 const SALARIO = /sueldo|salario|n[oó]mina|remuneraci[oó]n/i;
 const INV = /fpv|acciones|etf|fondo\s+mutuo|inversi[oó]n|apv|dep[oó]sito\s+a\s+plazo/i;
@@ -34,7 +34,7 @@ export function inferCategoriaGasto(fragment: string): string {
     return 'comida';
   }
   if (r) {
-    return 'ropa';
+    return 'vestuario';
   }
   if (o) {
     return 'ocio';
