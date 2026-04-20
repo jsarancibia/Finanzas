@@ -1,6 +1,7 @@
 /**
  * Cliente HTTP OpenAI-compatible: Groq (gsk_…) o xAI Grok (xai-…).
- * Auto-detecta el proveedor por el prefijo de la key; sobreescribe con LLM_BASE_URL / LLM_MODEL.
+ * Respeta LLM_BASE_URL y LLM_MODEL si están definidos en .env;
+ * de lo contrario, auto-detecta el proveedor por el prefijo de la key.
  */
 
 export interface ChatMessage {
@@ -8,23 +9,42 @@ export interface ChatMessage {
   content: string;
 }
 
-function getConfig(): { apiKey: string; baseUrl: string; model: string } | null {
+/** Activa logs extra con LLM_DEBUG=true */
+const DEBUG = process.env.LLM_DEBUG?.trim().toLowerCase() === 'true';
+
+interface LlmConfig {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}
+
+/** Configuración cacheada: las variables de entorno no cambian en tiempo de ejecución. */
+let _cfg: LlmConfig | null | undefined;
+
+function getConfig(): LlmConfig | null {
+  if (_cfg !== undefined) {
+    return _cfg;
+  }
   const apiKey = process.env.LLM_API_KEY?.trim();
   if (!apiKey) {
+    _cfg = null;
     return null;
   }
-  // Groq keys comienzan con gsk_; xAI con xai-
+  // Auto-detectar proveedor si no hay URL explícita
   const isGroq = apiKey.startsWith('gsk_');
   const defaultUrl = isGroq ? 'https://api.groq.com/openai/v1' : 'https://api.x.ai/v1';
   const defaultModel = isGroq ? 'llama-3.1-8b-instant' : 'grok-3-mini';
   const baseUrl = (process.env.LLM_BASE_URL ?? defaultUrl).replace(/\/$/, '');
   const model = process.env.LLM_MODEL?.trim() || defaultModel;
-  console.log(`[LLM] config: ${isGroq ? 'Groq' : 'xAI'} | model=${model} | url=${baseUrl}`);
-  return { apiKey, baseUrl, model };
+
+  console.log(`[LLM] configurado: ${isGroq ? 'Groq' : 'xAI'} | model=${model}`);
+  _cfg = { apiKey, baseUrl, model };
+  return _cfg;
 }
 
 /**
- * Una respuesta de chat; si no hay API key o falla la petición, devuelve null.
+ * Envía mensajes al endpoint de chat completions.
+ * Devuelve el texto de la respuesta, o null si hay error o sin key.
  */
 export async function completarChat(
   messages: ChatMessage[],
@@ -53,6 +73,10 @@ export async function completarChat(
 
   if (options?.jsonMode) {
     body.response_format = { type: 'json_object' };
+  }
+
+  if (DEBUG) {
+    console.log('[LLM] request body:', JSON.stringify(body).slice(0, 300));
   }
 
   try {
