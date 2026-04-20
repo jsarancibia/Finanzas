@@ -5,24 +5,31 @@ import { completarChat } from './llmClient.js';
  * Una sola tarea: extraer estructura. Sin historial (arquitectura3 — Fase 4).
  * Prohibido: saldos, consejos al usuario, prosa, markdown, repetir reglas del backend.
  */
-const SYSTEM_PARSE = `Tarea única: del siguiente mensaje en español (Chile, CLP) extrae UNA posible orden financiera.
-Responde solo un objeto JSON válido, sin markdown, sin texto antes ni después.
+const SYSTEM_PARSE = `Tarea única: del mensaje en español (Chile, CLP) extrae UNA orden financiera.
+Responde SOLO un objeto JSON válido, sin markdown, sin texto extra.
 
-Claves obligatorias: tipo, monto, categoria, descripcion, origen, destino.
-Opcionales si el mensaje los menciona: banco, cuenta_producto (string o null).
+Claves requeridas: tipo, monto, categoria, descripcion, origen, destino, banco, cuenta_producto.
 - tipo: "ingreso" | "gasto" | "ahorro" | null
-- monto: entero positivo en pesos CLP o null si no hay cifra clara
-- categoria, descripcion: string cortos; vacío "" si no aplica
+- monto: entero positivo en pesos CLP, o null si no hay cifra
+- categoria: string corto (ej. "zapatillas", "comida", "transporte"); "" si no aplica
+- descripcion: detalle adicional breve; "" si no aplica
 - origen, destino: string corto o null
-- banco: nombre del banco canónico (ej. "Banco Estado") o null
-- cuenta_producto: producto o subcuenta (ej. "Cuenta RUT", "Fondo mutuo") o null
+- banco: nombre canónico del banco/billetera mencionado como origen de fondos
+  (ej. "Mercado Pago", "Banco Estado", "MACH", "Tenpo", "BancoChile"); null si no se menciona
+- cuenta_producto: subcuenta o producto dentro del banco
+  (ej. "Cuenta RUT", "Cuenta Vista", "Cuenta Corriente"); null si no aplica
 
-Coloquial CLP: lucas/palos = miles (80 lucas→80000); Nk→N×1000; cien mil→100000.
+REGLA CLAVE: si el mensaje contiene «desde X», «con X», «via X», «de X» o «usando X»
+donde X es un banco o billetera → extrae siempre banco (y cuenta_producto si corresponde).
+Ejemplo: "gasté 10000 en zapatillas desde mercado pago"
+→ {"tipo":"gasto","monto":10000,"categoria":"zapatillas","descripcion":"","origen":null,"destino":null,"banco":"Mercado Pago","cuenta_producto":null}
+
+Coloquial CLP: lucas/palos=miles (80 lucas→80000); Nk→N×1000; cien mil→100000.
 Un movimiento por mensaje. Varios montos sin total claro → tipo null, monto null.
-Traspaso entre cuentas con patrón «de … a …» (ej. Cuenta RUT a Mercado Pago) → tipo null y monto null (otro módulo lo resuelve).
-Asignación «del disponible sin cuenta … en/a cuenta X» con monto → tipo null y monto null (otro módulo lo resuelve).
-Frases «del dinero a repartir», «pendiente de repartir» o «del pendiente» con monto y destino → tipo null y monto null (reparto desde colchón, no ingreso nuevo).
-No calcules ni menciones saldos. No des consejos. No inventes cifras.`;
+Traspaso «de X a Y» con dos cuentas → tipo null, monto null (otro módulo lo resuelve).
+Asignación «del disponible sin cuenta … a cuenta X» → tipo null, monto null (otro módulo).
+«del dinero a repartir» / «pendiente de repartir» → tipo null, monto null.
+No calcules saldos. No des consejos. No inventes cifras.`;
 
 /** Límite de caracteres del usuario al modelo (costo y foco). */
 const MAX_MENSAJE_LLM = 700;
@@ -59,7 +66,7 @@ export async function parseMessageWithLlm(text: string): Promise<ParsedMovimient
     ],
     {
       jsonMode: true,
-      maxTokens: 160,
+      maxTokens: 200,
       temperature: 0.1,
     },
   );

@@ -16,6 +16,7 @@ export function getProcessMessageLlmOptions(): {
   }
   const key = process.env.LLM_API_KEY?.trim();
   if (!key) {
+    console.warn('[LLM] LLM_API_KEY no configurada; el parsing usará solo regex como respaldo.');
     return {};
   }
   return { parseWithLlm: parseMessageWithLlm };

@@ -356,18 +356,20 @@ export async function processMessage(
     };
   }
 
-  let parsed: ParsedMovimiento | null = parseMessageRegex(text);
-
-  if (!parsed) {
-    const trRes = await ejecutarTraspaso(text, authUserId);
-    if (trRes) {
-      return trRes;
-    }
-    parsed = parseMessageFlexible(text);
+  // Traspaso (flujo de 2 RPCs, antes del LLM para no interferir)
+  const trRes = await ejecutarTraspaso(text, authUserId);
+  if (trRes) {
+    return trRes;
   }
 
-  if (!parsed && options.parseWithLlm) {
-    parsed = await options.parseWithLlm(text);
+  // LLM: intérprete principal de lenguaje natural
+  let parsed: ParsedMovimiento | null = options.parseWithLlm
+    ? await options.parseWithLlm(text)
+    : null;
+
+  // Regex: respaldo de emergencia (LLM offline / sin API key configurada)
+  if (!parsed) {
+    parsed = parseMessageRegex(text) ?? parseMessageFlexible(text);
   }
 
   if (!parsed) {
