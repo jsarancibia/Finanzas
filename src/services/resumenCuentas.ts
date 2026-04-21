@@ -15,9 +15,15 @@ export type TarjetaGastoResumen = {
   fecha: string | null;
 };
 
+export type ItemGastoCategoria = {
+  descripcion: string;
+  monto: number;
+};
+
 export type LineaGastoCategoria = {
   categoria: string;
   monto: number;
+  items: ItemGastoCategoria[];
 };
 
 type LineaAhorro = {
@@ -355,7 +361,8 @@ export async function obtenerResumenDashboard(
     gastos_ultimos.push({ etiqueta, monto: m, fecha });
   }
 
-  const byCat = new Map<string, number>();
+  type CatEntry = { total: number; items: ItemGastoCategoria[] };
+  const byCat = new Map<string, CatEntry>();
   for (const row of gastosRows) {
     const r = row as Record<string, unknown>;
     const m = Number(r.monto);
@@ -365,12 +372,15 @@ export async function obtenerResumenDashboard(
     const catRaw = typeof r.categoria === 'string' ? r.categoria.trim() : '';
     const descRaw = typeof r.descripcion === 'string' ? r.descripcion.trim() : '';
     const cat = claveAgrupacionGasto(catRaw, descRaw);
-    byCat.set(cat, (byCat.get(cat) ?? 0) + m);
+    const entry = byCat.get(cat) ?? { total: 0, items: [] };
+    entry.total += m;
+    entry.items.push({ descripcion: descRaw || catRaw || cat, monto: m });
+    byCat.set(cat, entry);
   }
   const gastos_por_categoria: LineaGastoCategoria[] = [...byCat.entries()]
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => b[1].total - a[1].total)
     .slice(0, TOP_CATEGORIAS)
-    .map(([categoria, monto]) => ({ categoria, monto }));
+    .map(([categoria, { total, items }]) => ({ categoria, monto: total, items }));
 
   return {
     moneda: reglas.moneda.trim() || 'CLP',

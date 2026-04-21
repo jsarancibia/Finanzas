@@ -842,6 +842,138 @@
         cursor: not-allowed;
       }
 
+      /* ── Tarjeta expandible por categoría ── */
+      .fin-cat-card {
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        background: var(--card-bg);
+        overflow: hidden;
+        transition: box-shadow 0.18s ease, border-color 0.18s ease;
+        margin-bottom: 0.45rem;
+      }
+
+      .fin-cat-card:hover {
+        box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+        border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+      }
+
+      html[data-theme="light"] .fin-cat-card {
+        background: #fff;
+      }
+
+      .fin-cat-card__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        gap: 0.5rem;
+        cursor: default;
+      }
+
+      .fin-cat-card__info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+        flex: 1;
+        min-width: 0;
+      }
+
+      .fin-cat-card__nombre {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--text-muted, #9ca0b0);
+        text-transform: capitalize;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .fin-cat-card__monto {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0;
+      }
+
+      .fin-cat-card__toggle {
+        flex-shrink: 0;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text-muted, #9ca0b0);
+        font-size: 1.1rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.18s ease;
+        padding: 0;
+      }
+
+      .fin-cat-card__toggle:hover {
+        background: color-mix(in srgb, var(--accent) 16%, transparent);
+        border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+        color: var(--accent);
+      }
+
+      .fin-cat-card__toggle--open {
+        background: color-mix(in srgb, var(--accent) 16%, transparent);
+        border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+        color: var(--accent);
+      }
+
+      .fin-cat-card__detail {
+        overflow: hidden;
+        max-height: 0;
+        transition: max-height 0.28s ease;
+        border-top: 1px solid color-mix(in srgb, var(--border) 0%, transparent);
+      }
+
+      .fin-cat-card__detail--open {
+        border-top-color: var(--border);
+      }
+
+      .fin-cat-card__item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.42rem 1rem;
+        gap: 0.5rem;
+        border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+      }
+
+      .fin-cat-card__item:last-child {
+        border-bottom: none;
+      }
+
+      .fin-cat-card__item:hover {
+        background: color-mix(in srgb, var(--accent) 6%, transparent);
+      }
+
+      .fin-cat-card__item-desc {
+        font-size: 0.8rem;
+        color: var(--text-muted, #9ca0b0);
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-transform: capitalize;
+      }
+
+      .fin-cat-card__item-monto {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--text);
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
       /* ── Botones de acción global en sidebar ── */
       .sidebar-actions {
         display: flex;

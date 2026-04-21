@@ -334,6 +334,99 @@ export async function runApp({ getAuthHeaders, authUserId }) {
           return { sec, cards };
         }
 
+        /**
+         * Tarjeta expandible para una categoría de gastos.
+         * @param {{ categoria: string, monto: number, items?: Array<{descripcion: string, monto: number}> }} row
+         * @param {string} moneda
+         */
+        function elCatCard(row, moneda) {
+          const items = Array.isArray(row.items) ? row.items : [];
+          const hasItems = items.length > 0;
+
+          const card = document.createElement("article");
+          card.className = "fin-cat-card";
+
+          // Cabecera principal (siempre visible)
+          const header = document.createElement("div");
+          header.className = "fin-cat-card__header";
+
+          const info = document.createElement("div");
+          info.className = "fin-cat-card__info";
+
+          const nombre = document.createElement("h3");
+          nombre.className = "fin-cat-card__nombre";
+          nombre.textContent = String(row.categoria || "\u2014");
+          info.appendChild(nombre);
+
+          const monto = document.createElement("p");
+          monto.className = "fin-cat-card__monto";
+          monto.textContent = formatMonto(row.monto, moneda);
+          info.appendChild(monto);
+
+          header.appendChild(info);
+
+          if (hasItems) {
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            toggle.className = "fin-cat-card__toggle";
+            toggle.setAttribute("aria-expanded", "false");
+            toggle.setAttribute("aria-label", "Expandir categor\u00eda");
+            toggle.textContent = "+";
+            header.appendChild(toggle);
+
+            const detail = document.createElement("div");
+            detail.className = "fin-cat-card__detail";
+            detail.style.maxHeight = "0";
+
+            for (const item of items) {
+              const itemRow = document.createElement("div");
+              itemRow.className = "fin-cat-card__item";
+
+              const itemDesc = document.createElement("span");
+              itemDesc.className = "fin-cat-card__item-desc";
+              itemDesc.textContent = String(item.descripcion || "\u2014");
+
+              const itemMonto = document.createElement("span");
+              itemMonto.className = "fin-cat-card__item-monto";
+              itemMonto.textContent = formatMonto(item.monto, moneda);
+
+              itemRow.appendChild(itemDesc);
+              itemRow.appendChild(itemMonto);
+              detail.appendChild(itemRow);
+            }
+
+            card.appendChild(header);
+            card.appendChild(detail);
+
+            toggle.addEventListener("click", () => {
+              const expanded = toggle.getAttribute("aria-expanded") === "true";
+              toggle.setAttribute("aria-expanded", String(!expanded));
+              toggle.textContent = expanded ? "+" : "\u2212";
+              toggle.classList.toggle("fin-cat-card__toggle--open", !expanded);
+              detail.classList.toggle("fin-cat-card__detail--open", !expanded);
+              if (expanded) {
+                detail.style.maxHeight = detail.scrollHeight + "px";
+                requestAnimationFrame(() => {
+                  detail.style.maxHeight = "0";
+                });
+              } else {
+                const fullH = detail.scrollHeight;
+                detail.style.maxHeight = fullH + "px";
+                detail.addEventListener("transitionend", function handler() {
+                  if (toggle.getAttribute("aria-expanded") === "true") {
+                    detail.style.maxHeight = "none";
+                  }
+                  detail.removeEventListener("transitionend", handler);
+                });
+              }
+            });
+          } else {
+            card.appendChild(header);
+          }
+
+          return card;
+        }
+
         async function refreshResumen() {
           resumenStatus.textContent = "Actualizando\u2026";
           resumenStatus.classList.remove("error");
@@ -489,13 +582,7 @@ export async function runApp({ getAuthHeaders, authUserId }) {
               for (const row of gCat) {
                 if (!row) continue;
                 s3.cards.appendChild(
-                  elFinCard(
-                    String(row.categoria || "\u2014"),
-                    null,
-                    formatMonto(row.monto, moneda),
-                    "gasto",
-                    "",
-                  ),
+                  elCatCard(row, moneda),
                 );
               }
             }

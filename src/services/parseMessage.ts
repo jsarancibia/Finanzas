@@ -343,8 +343,7 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
       }
       const tail = rawTail ? limpiarBancoDeColaGasto(rawTail) : '';
       const cat = tail ? inferCategoriaGasto(tail) : 'otros';
-      const descripcion =
-        tail && (cat === 'otros' || tail.split(/\s+/).length > 1) ? tail : '';
+      const descripcion = tail || '';
       return {
         tipo: 'gasto',
         monto,
@@ -539,11 +538,7 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
         // viene antes del «desde», en el resto de headDesde (extDesde.rest = " en zapatillas").
         const catFrag = tailCat || extDesde.rest.replace(/^\s*en\s+/i, '').trim();
         const cat = catFrag ? inferCategoriaGasto(catFrag) : 'otros';
-        const descripcion =
-          catFrag &&
-          (cat === 'otros' || /y\s+|varias/i.test(catFrag) || catFrag.split(/\s+/).length > 1)
-            ? catFrag
-            : '';
+        const descripcion = catFrag || '';
         const base: ParsedMovimiento = {
           tipo: 'gasto',
           monto: extDesde.monto,
@@ -565,11 +560,7 @@ export function parseMessageRegex(text: string): ParsedMovimiento | null {
       const rawTail2 = en ? en[1].trim() : limpiarRestoDetalle(ext.rest);
       const combined = rawTail2 ? limpiarBancoDeColaGasto(rawTail2) : ext.rest;
       const cat = combined ? inferCategoriaGasto(combined) : 'otros';
-      const descripcion =
-        combined &&
-        (cat === 'otros' || /y\s+|varias/i.test(combined) || combined.split(/\s+/).length > 1)
-          ? combined
-          : '';
+      const descripcion = combined || '';
       return {
         tipo: 'gasto',
         monto: ext.monto,
