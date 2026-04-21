@@ -382,15 +382,26 @@ export async function runApp({ getAuthHeaders, authUserId }) {
               const itemRow = document.createElement("div");
               itemRow.className = "fin-cat-card__item";
 
+              const leftCol = document.createElement("div");
+              leftCol.className = "fin-cat-card__item-left";
+
+              if (item.fecha) {
+                const fechaBadge = document.createElement("span");
+                fechaBadge.className = "fin-cat-card__item-fecha";
+                fechaBadge.textContent = formatFechaCorta(item.fecha);
+                leftCol.appendChild(fechaBadge);
+              }
+
               const itemDesc = document.createElement("span");
               itemDesc.className = "fin-cat-card__item-desc";
               itemDesc.textContent = String(item.descripcion || "\u2014");
+              leftCol.appendChild(itemDesc);
 
               const itemMonto = document.createElement("span");
               itemMonto.className = "fin-cat-card__item-monto";
               itemMonto.textContent = formatMonto(item.monto, moneda);
 
-              itemRow.appendChild(itemDesc);
+              itemRow.appendChild(leftCol);
               itemRow.appendChild(itemMonto);
               detail.appendChild(itemRow);
             }

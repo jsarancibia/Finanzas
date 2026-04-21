@@ -18,6 +18,7 @@ export type TarjetaGastoResumen = {
 export type ItemGastoCategoria = {
   descripcion: string;
   monto: number;
+  fecha: string | null;
 };
 
 export type LineaGastoCategoria = {
@@ -374,7 +375,8 @@ export async function obtenerResumenDashboard(
     const cat = claveAgrupacionGasto(catRaw, descRaw);
     const entry = byCat.get(cat) ?? { total: 0, items: [] };
     entry.total += m;
-    entry.items.push({ descripcion: descRaw || catRaw || cat, monto: m });
+    const fechaRaw = r.fecha != null && String(r.fecha).trim() !== '' ? String(r.fecha) : null;
+    entry.items.push({ descripcion: descRaw || catRaw || cat, monto: m, fecha: fechaRaw });
     byCat.set(cat, entry);
   }
   const gastos_por_categoria: LineaGastoCategoria[] = [...byCat.entries()]

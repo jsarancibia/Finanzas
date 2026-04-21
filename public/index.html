@@ -955,10 +955,35 @@
         background: color-mix(in srgb, var(--accent) 6%, transparent);
       }
 
+      .fin-cat-card__item-left {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex: 1;
+        min-width: 0;
+      }
+
+      .fin-cat-card__item-fecha {
+        flex-shrink: 0;
+        font-size: 0.67rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 14%, transparent);
+        border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+        border-radius: 5px;
+        padding: 0.08rem 0.38rem;
+        line-height: 1.5;
+        white-space: nowrap;
+      }
+
+      html[data-theme="light"] .fin-cat-card__item-fecha {
+        background: color-mix(in srgb, var(--accent) 10%, #fff);
+      }
+
       .fin-cat-card__item-desc {
         font-size: 0.8rem;
         color: var(--text-muted, #9ca0b0);
-        flex: 1;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
