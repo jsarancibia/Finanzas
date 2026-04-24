@@ -2,12 +2,35 @@ import type { Reglas } from '../config/loadReglas.js';
 import { fetchAllBalanceRows } from './fetchBalancesRows.js';
 import { getSupabaseService } from './supabaseClient.js';
 
+export type RentabilidadCuenta = {
+  tasa: number;
+  mensual: number;
+  anual: number;
+};
+
 /** Tarjeta de cuenta (disponible o ahorro/inversión), datos desde BD. */
 export type TarjetaCuentaResumen = {
   nombre: string;
   banco: string | null;
   monto: number;
+  rentabilidad?: RentabilidadCuenta | null;
 };
+
+const TASA_RESERVA_MP = 4.2;
+
+/** Detecta si una cuenta es la Reserva de Mercado Pago con rentabilidad fija. */
+function esReservaMP(banco: string | null, nombre: string): boolean {
+  const b = (banco ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const n = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return b.includes('mercado pago') && n.includes('reserva');
+}
+
+/** Calcula rentabilidad simple anual/mensual para la Reserva MP. */
+function calcularRentabilidadReserva(saldo: number): RentabilidadCuenta {
+  const mensual = Math.round(saldo * (TASA_RESERVA_MP / 12 / 100));
+  const anual = Math.round(saldo * (TASA_RESERVA_MP / 100));
+  return { tasa: TASA_RESERVA_MP, mensual, anual };
+}
 
 export type TarjetaGastoResumen = {
   etiqueta: string;
@@ -236,7 +259,12 @@ function construirSeccionAhorro(
     // Saldo en `cuentas` gana sobre la suma de movimientos para la misma cuenta/banco.
     byKey.set(tarjetaAhorroKey(t), t);
   }
-  const list = [...byKey.values()];
+  const list = [...byKey.values()].map((t) => {
+    if (esReservaMP(t.banco, t.nombre) && t.monto > 0) {
+      return { ...t, rentabilidad: calcularRentabilidadReserva(t.monto) };
+    }
+    return t;
+  });
   const sumCards = list.reduce((s, t) => s + (Number.isFinite(t.monto) ? t.monto : 0), 0);
   const gap = saldo_ahorrado_total - sumCards;
   if (gap > 0.5) {

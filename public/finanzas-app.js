@@ -528,9 +528,18 @@ export async function runApp({ getAuthHeaders, authUserId }) {
                 if (!c) continue;
                 const banco = c.banco && String(c.banco).trim() ? String(c.banco).trim() : null;
                 const addOpts = banco ? { banco, cuentaProducto: String(c.nombre || "") } : null;
-                s2.cards.appendChild(
-                  elFinCard(String(c.nombre || "\u2014"), banco, formatMonto(c.monto, moneda), "ahorro", "", addOpts),
-                );
+                const card = elFinCard(String(c.nombre || "\u2014"), banco, formatMonto(c.monto, moneda), "ahorro", "", addOpts);
+                if (c.rentabilidad && c.rentabilidad.tasa > 0 && c.monto > 0) {
+                  const r = c.rentabilidad;
+                  const bloque = document.createElement("div");
+                  bloque.className = "fin-card__rentabilidad";
+                  bloque.innerHTML =
+                    `<span class="fin-card__rent-row">+ ${formatMonto(r.mensual, moneda)} <span class="fin-card__rent-label">/ mes</span></span>` +
+                    `<span class="fin-card__rent-row">+ ${formatMonto(r.anual, moneda)} <span class="fin-card__rent-label">/ a\u00f1o</span></span>` +
+                    `<span class="fin-card__rent-tasa">${r.tasa}% anual</span>`;
+                  card.appendChild(bloque);
+                }
+                s2.cards.appendChild(card);
               }
             }
 
@@ -878,7 +887,17 @@ export async function runApp({ getAuthHeaders, authUserId }) {
           ccOk.disabled = true;
           ccOk.textContent = "Creando…";
           const err = await ejecutarCrearCuenta(ccBanco.value.trim(), ccNombre.value.trim(), ccTipo, (data) => {
-            appendBubble("assistant", `✔ Cuenta creada: ${data.nombre} (${data.banco} · ${data.tipo})`, { warn: false });
+            if (data.rentabilidad_tasa) {
+              appendBubble(
+                "assistant",
+                `✔ Cuenta creada: ${data.nombre} (${data.banco} · ${data.tipo})\n\n` +
+                `\uD83D\uDCB9 Esta cuenta tiene ahorro fijo al ${data.rentabilidad_tasa}% anual.\n` +
+                `Tu dinero crece solo con solo tenerlo aqu\u00ed. Cada mes Mercado Pago acredita los intereses directamente en tu saldo \u2014 sin que tengas que hacer nada.`,
+                { warn: false },
+              );
+            } else {
+              appendBubble("assistant", `\u2714 Cuenta creada: ${data.nombre} (${data.banco} \u00b7 ${data.tipo})`, { warn: false });
+            }
           });
           if (err) {
             ccError.textContent = err;

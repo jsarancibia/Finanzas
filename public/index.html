@@ -842,6 +842,51 @@
         cursor: not-allowed;
       }
 
+      /* ── Rentabilidad en tarjeta ahorro (Reserva MP) ── */
+      .fin-card__rentabilidad {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        margin-top: 0.6rem;
+        padding-top: 0.55rem;
+        border-top: 1px solid color-mix(in srgb, #22c55e 22%, transparent);
+      }
+
+      .fin-card__rent-row {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #22c55e;
+        display: flex;
+        align-items: baseline;
+        gap: 0.25rem;
+      }
+
+      html[data-theme="light"] .fin-card__rent-row {
+        color: #16a34a;
+      }
+
+      .fin-card__rent-label {
+        font-size: 0.72rem;
+        font-weight: 500;
+        color: color-mix(in srgb, #22c55e 70%, transparent);
+      }
+
+      html[data-theme="light"] .fin-card__rent-label {
+        color: color-mix(in srgb, #16a34a 65%, transparent);
+      }
+
+      .fin-card__rent-tasa {
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        color: color-mix(in srgb, #22c55e 55%, transparent);
+        margin-top: 0.1rem;
+      }
+
+      html[data-theme="light"] .fin-card__rent-tasa {
+        color: color-mix(in srgb, #16a34a 55%, transparent);
+      }
+
       /* ── Tarjeta expandible por categoría ── */
       .fin-cat-card {
         border-radius: 14px;

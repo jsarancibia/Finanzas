@@ -9,6 +9,16 @@ export interface CrearCuentaResponse {
   tipo: string;
   cuenta_id?: string;
   error?: string;
+  /** Presente si la cuenta tiene rentabilidad fija (ej. Reserva Mercado Pago). */
+  rentabilidad_tasa?: number;
+}
+
+const TASA_RESERVA_MP = 4.2;
+
+function esReservaMP(banco: string, nombre: string): boolean {
+  const b = banco.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const n = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return b.includes('mercado pago') && n.includes('reserva');
 }
 
 function normalizarNombre(s: string): string {
@@ -125,11 +135,15 @@ export async function handleCrearCuentaPost(
     };
   }
 
-  return {
+  const resp: CrearCuentaResponse = {
     ok: true,
     banco: bancoTrim,
     nombre: nombreTrim,
     tipo: tipoTrim,
     cuenta_id: (cuentaRow as { id: string }).id,
   };
+  if (esReservaMP(bancoTrim, nombreTrim)) {
+    resp.rentabilidad_tasa = TASA_RESERVA_MP;
+  }
+  return resp;
 }
