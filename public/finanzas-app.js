@@ -334,6 +334,36 @@ export async function runApp({ getAuthHeaders, authUserId }) {
           return { sec, cards };
         }
 
+        /* ── Simulación de rentabilidad diaria ── */
+        const _rentSimCache = new Map();
+
+        /**
+         * Calcula la ganancia visible hoy según el día de la semana.
+         * - Lunes: acumula sábado + domingo + lunes (3 días)
+         * - Sáb/Dom: sin acreditación visible (0 días)
+         * - Mar–Vie: 1 día
+         *
+         * No modifica saldos reales, es solo cálculo dinámico.
+         */
+        function calcularRentabilidadSimulada(fechaActual, saldo, tasaAnual) {
+          const cacheKey = `${fechaActual.toDateString()}|${saldo}|${tasaAnual}`;
+          if (_rentSimCache.has(cacheKey)) return _rentSimCache.get(cacheKey);
+
+          const dia = fechaActual.getDay(); // 0=Dom, 1=Lun, 2=Mar … 6=Sab
+
+          let dias;
+          if (dia === 1)             dias = 3;  // Lunes
+          else if (dia === 0 || dia === 6) dias = 0;  // Sáb/Dom
+          else                       dias = 1;  // Mar–Vie
+
+          const tasaDiaria = tasaAnual / 365 / 100;
+          const ganancia_visible_hoy = Math.round(saldo * tasaDiaria * dias);
+
+          const resultado = { ganancia_visible_hoy, tasa_anual: tasaAnual, dias_acumulados: dias };
+          _rentSimCache.set(cacheKey, resultado);
+          return resultado;
+        }
+
         /**
          * Tarjeta expandible para una categoría de gastos.
          * @param {{ categoria: string, monto: number, items?: Array<{descripcion: string, monto: number}> }} row
@@ -531,12 +561,50 @@ export async function runApp({ getAuthHeaders, authUserId }) {
                 const card = elFinCard(String(c.nombre || "\u2014"), banco, formatMonto(c.monto, moneda), "ahorro", "", addOpts);
                 if (c.rentabilidad && c.rentabilidad.tasa > 0 && c.monto > 0) {
                   const r = c.rentabilidad;
+                  const sim = calcularRentabilidadSimulada(new Date(), c.monto, r.tasa);
+
                   const bloque = document.createElement("div");
                   bloque.className = "fin-card__rentabilidad";
-                  bloque.innerHTML =
-                    `<span class="fin-card__rent-row">+ ${formatMonto(r.mensual, moneda)} <span class="fin-card__rent-label">/ mes</span></span>` +
-                    `<span class="fin-card__rent-row">+ ${formatMonto(r.anual, moneda)} <span class="fin-card__rent-label">/ a\u00f1o</span></span>` +
-                    `<span class="fin-card__rent-tasa">${r.tasa}% anual</span>`;
+
+                  // Fila "hoy" — solo si hay acreditación visible
+                  if (sim.ganancia_visible_hoy > 0) {
+                    const esLunes = sim.dias_acumulados === 3;
+                    const hoyRow = document.createElement("div");
+                    hoyRow.className = "fin-card__rent-hoy";
+
+                    const hoyMonto = document.createElement("span");
+                    hoyMonto.className = "fin-card__rent-hoy-monto";
+                    hoyMonto.textContent = `+ ${formatMonto(sim.ganancia_visible_hoy, moneda)}`;
+
+                    const hoyLabel = document.createElement("span");
+                    hoyLabel.className = "fin-card__rent-hoy-label";
+                    hoyLabel.textContent = esLunes ? "hoy (incluye fin de semana)" : "hoy";
+
+                    hoyRow.appendChild(hoyMonto);
+                    hoyRow.appendChild(hoyLabel);
+                    bloque.appendChild(hoyRow);
+
+                    const sep = document.createElement("div");
+                    sep.className = "fin-card__rent-sep";
+                    bloque.appendChild(sep);
+                  }
+
+                  // Proyecciones mensual / anual
+                  const rowMensual = document.createElement("span");
+                  rowMensual.className = "fin-card__rent-row";
+                  rowMensual.innerHTML = `+ ${formatMonto(r.mensual, moneda)} <span class="fin-card__rent-label">/ mes</span>`;
+
+                  const rowAnual = document.createElement("span");
+                  rowAnual.className = "fin-card__rent-row";
+                  rowAnual.innerHTML = `+ ${formatMonto(r.anual, moneda)} <span class="fin-card__rent-label">/ a\u00f1o</span>`;
+
+                  const rowTasa = document.createElement("span");
+                  rowTasa.className = "fin-card__rent-tasa";
+                  rowTasa.textContent = `${r.tasa}% anual`;
+
+                  bloque.appendChild(rowMensual);
+                  bloque.appendChild(rowAnual);
+                  bloque.appendChild(rowTasa);
                   card.appendChild(bloque);
                 }
                 s2.cards.appendChild(card);
