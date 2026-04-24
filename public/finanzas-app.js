@@ -630,36 +630,104 @@ export async function runApp({ getAuthHeaders, authUserId }) {
 
             const s3 = seccionDashboard("Gastos", totalGastosStr);
             resumenList.appendChild(s3.sec);
-            const subUlt = document.createElement("h4");
-            subUlt.className = "dash-section__subtitle";
-            subUlt.textContent = "\u00daltimos gastos";
-            s3.cards.appendChild(subUlt);
+
+            // ── Tarjeta expandible "Últimos gastos" ──
+            const ultCard = document.createElement("article");
+            ultCard.className = "fin-cat-card";
+            ultCard.style.marginBottom = "0.65rem";
+
+            const ultHeader = document.createElement("div");
+            ultHeader.className = "fin-cat-card__header";
+
+            const ultInfo = document.createElement("div");
+            ultInfo.className = "fin-cat-card__info";
+
+            const ultNombre = document.createElement("h3");
+            ultNombre.className = "fin-cat-card__nombre";
+            ultNombre.textContent = "\u00daltimos gastos";
+            ultInfo.appendChild(ultNombre);
+
+            const ultMonto = document.createElement("p");
+            ultMonto.className = "fin-cat-card__monto";
+            ultMonto.textContent = sumaUltimos > 0 ? formatMonto(sumaUltimos, moneda) : "\u2014";
+            ultInfo.appendChild(ultMonto);
+
+            ultHeader.appendChild(ultInfo);
+
+            const ultToggle = document.createElement("button");
+            ultToggle.type = "button";
+            ultToggle.className = "fin-cat-card__toggle";
+            ultToggle.setAttribute("aria-expanded", "false");
+            ultToggle.setAttribute("aria-label", "Expandir \u00faltimos gastos");
+            ultToggle.textContent = "+";
+            ultHeader.appendChild(ultToggle);
+
+            const ultDetail = document.createElement("div");
+            ultDetail.className = "fin-cat-card__detail";
+            ultDetail.style.maxHeight = "0";
+
             if (gUlt.length === 0) {
               const empty = document.createElement("div");
-              empty.className = "empty-state";
-              empty.style.padding = "0.5rem 0";
+              empty.className = "fin-cat-card__item";
+              empty.style.color = "var(--text-muted, #9ca0b0)";
+              empty.style.fontSize = "0.8rem";
               empty.textContent = "A\u00fan no hay gastos recientes.";
-              s3.cards.appendChild(empty);
+              ultDetail.appendChild(empty);
             } else {
               for (const g of gUlt) {
                 if (!g) continue;
-                const fe = formatFechaCorta(g.fecha);
-                s3.cards.appendChild(
-                  elFinCard(
-                    String(g.etiqueta || "Gasto"),
-                    null,
-                    formatMonto(g.monto, moneda),
-                    "gasto",
-                    fe,
-                  ),
-                );
+                const itemRow = document.createElement("div");
+                itemRow.className = "fin-cat-card__item";
+
+                const leftCol = document.createElement("div");
+                leftCol.className = "fin-cat-card__item-left";
+
+                if (g.fecha) {
+                  const fechaBadge = document.createElement("span");
+                  fechaBadge.className = "fin-cat-card__item-fecha";
+                  fechaBadge.textContent = formatFechaCorta(g.fecha);
+                  leftCol.appendChild(fechaBadge);
+                }
+
+                const desc = document.createElement("span");
+                desc.className = "fin-cat-card__item-desc";
+                desc.textContent = String(g.etiqueta || "Gasto");
+                leftCol.appendChild(desc);
+
+                const monto = document.createElement("span");
+                monto.className = "fin-cat-card__item-monto";
+                monto.textContent = formatMonto(g.monto, moneda);
+
+                itemRow.appendChild(leftCol);
+                itemRow.appendChild(monto);
+                ultDetail.appendChild(itemRow);
               }
             }
-            const subCat = document.createElement("h4");
-            subCat.className = "dash-section__subtitle";
-            subCat.style.marginTop = "0.65rem";
-            subCat.textContent = "Por categor\u00eda";
-            s3.cards.appendChild(subCat);
+
+            ultCard.appendChild(ultHeader);
+            ultCard.appendChild(ultDetail);
+
+            ultToggle.addEventListener("click", () => {
+              const expanded = ultToggle.getAttribute("aria-expanded") === "true";
+              ultToggle.setAttribute("aria-expanded", String(!expanded));
+              ultToggle.textContent = expanded ? "+" : "\u2212";
+              ultToggle.classList.toggle("fin-cat-card__toggle--open", !expanded);
+              ultDetail.classList.toggle("fin-cat-card__detail--open", !expanded);
+              if (expanded) {
+                ultDetail.style.maxHeight = ultDetail.scrollHeight + "px";
+                requestAnimationFrame(() => { ultDetail.style.maxHeight = "0"; });
+              } else {
+                ultDetail.style.maxHeight = ultDetail.scrollHeight + "px";
+                ultDetail.addEventListener("transitionend", function h() {
+                  if (ultToggle.getAttribute("aria-expanded") === "true") {
+                    ultDetail.style.maxHeight = "none";
+                  }
+                  ultDetail.removeEventListener("transitionend", h);
+                });
+              }
+            });
+
+            s3.cards.appendChild(ultCard);
             if (gCat.length === 0) {
               const empty = document.createElement("div");
               empty.className = "empty-state";
