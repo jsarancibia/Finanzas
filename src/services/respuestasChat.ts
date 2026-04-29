@@ -27,6 +27,19 @@ export async function respuestaErrorCorta(
   if (resultado.ok) {
     return '';
   }
+  if ('phase' in resultado && resultado.phase === 'resultado') {
+    const errCode = typeof resultado.error === 'string' ? resultado.error : '';
+    if (
+      errCode === 'cuenta_no_encontrada' ||
+      errCode === 'banco_no_encontrado'
+    ) {
+      return 'No encontré esa cuenta de ahorro con ese banco/nombre. Indica igual que en el panel (ej. Mercado Pago y la cuenta «reservas», «fondo mutuo», etc.).';
+    }
+    if (errCode === 'saldo_insuficiente_cuenta_ahorro') {
+      return 'En esa cuenta de ahorro no alcanza el monto que quieres retirar. Revisa el saldo en «Ahorro» o usa un monto menor.';
+    }
+  }
+
   if (resultado.phase === 'parse') {
     if (resultado.error === 'no_parseado') {
       return 'No reconocí el mensaje.';
@@ -163,6 +176,9 @@ export async function construirRespuestaAsistente(
       extra = ` (${parsed.descripcion})`;
     }
     cuerpo = `${prefijo}Ingreso registrado: ${m}${extra}`;
+  } else if (parsed.tipo === 'retiro_cuenta' && parsed.banco && parsed.cuentaProducto) {
+    const desde = `${parsed.banco} · ${parsed.cuentaProducto}`;
+    cuerpo = `${prefijo}Retiro registrado: ${m} desde ${desde}`;
   } else if (parsed.tipo === 'gasto') {
     const label = (parsed.categoria && parsed.categoria !== 'otros')
       ? parsed.categoria
@@ -181,6 +197,7 @@ export async function construirRespuestaAsistente(
       }
       if (
         parsed.tipo === 'ahorro' ||
+        parsed.tipo === 'retiro_cuenta' ||
         (parsed.tipo === 'ingreso' && parsed.banco && parsed.cuentaProducto)
       ) {
         out.push(lineaSaldoAhorrado(reglas, saldos.saldo_ahorrado));
@@ -200,6 +217,7 @@ export async function construirRespuestaAsistente(
   }
   if (
     parsed.tipo === 'ahorro' ||
+    parsed.tipo === 'retiro_cuenta' ||
     (parsed.tipo === 'ingreso' && parsed.banco && parsed.cuentaProducto)
   ) {
     lineas.push(lineaSaldoAhorrado(reglas, saldos.saldo_ahorrado));

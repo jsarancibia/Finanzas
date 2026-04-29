@@ -1,7 +1,8 @@
 import { inferCategoriaGasto } from './categoriasMovimiento.js';
 import { bloqueaIngresoPorPalabraTengo } from './contextoNoEsIngresoNuevo.js';
 
-export type MovimientoTipo = 'ingreso' | 'gasto' | 'ahorro';
+/** `retiro_cuenta`: retiro desde cuenta de ahorro/inversión (no descuenta saldo disponible). */
+export type MovimientoTipo = 'ingreso' | 'gasto' | 'ahorro' | 'retiro_cuenta';
 
 export interface ParsedMovimiento {
   tipo: MovimientoTipo;

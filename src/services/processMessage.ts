@@ -18,6 +18,7 @@ import { tryCompletarGastoPendienteConCuenta } from './gastoCompletarRespuestaCu
 import { resolverGastoCuentaAntesDeRpc } from './gastoRequiereCuenta.js';
 import { corregirTypos } from './corregirTypos.js';
 import { obtenerSaldosBalancesDesdeBd } from './memoriaContexto.js';
+import { handleRetiroCuentaPost } from '../routes/handleRetiroCuentaPost.js';
 
 export type ProcessOk = {
   ok: true;
@@ -69,6 +70,14 @@ export type ProcessResult = ProcessOk | ProcessErr | ProcessTextoSinMovimiento |
 function validateParsed(p: ParsedMovimiento): string | null {
   if (p.monto <= 0 || !Number.isFinite(p.monto)) {
     return 'monto_invalido';
+  }
+  if (p.tipo === 'retiro_cuenta') {
+    const b = p.banco?.trim();
+    const c = p.cuentaProducto?.trim();
+    if (!b || !c) {
+      return 'retiro_incompleto';
+    }
+    return null;
   }
   if (!['ingreso', 'gasto', 'ahorro'].includes(p.tipo)) {
     return 'tipo_invalido';
@@ -380,7 +389,38 @@ export async function processMessage(
 
   const v = validateParsed(parsed);
   if (v) {
+    if (v === 'retiro_incompleto') {
+      return {
+        ok: true,
+        kind: 'aclaracion_monto',
+        texto:
+          'Para registrar un retiro desde ahorro o inversión, indica la cuenta exacta ' +
+          '(ej: «saqué 130.000 desde reservas de Mercado Pago», «retiro 50 mil del fondo mutuo en Banco Estado»).',
+      };
+    }
     return { ok: false, phase: 'parse', error: v, parsed };
+  }
+
+  if (parsed.tipo === 'retiro_cuenta') {
+    const rr = await handleRetiroCuentaPost(
+      parsed.monto,
+      parsed.banco ?? '',
+      parsed.cuentaProducto ?? '',
+      authUserId,
+    );
+    if (!rr.ok) {
+      return {
+        ok: false,
+        phase: 'resultado',
+        error: rr.error ?? 'retiro_rechazado',
+        parsed,
+      };
+    }
+    return {
+      ok: true,
+      movimiento_id: rr.movimiento_id ?? 'retiro_cuenta',
+      parsed,
+    };
   }
 
   const gastoCuenta = await resolverGastoCuentaAntesDeRpc(parsed, authUserId);

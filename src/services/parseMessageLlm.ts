@@ -7,8 +7,11 @@ const SYSTEM_PARSE =
   'Extrae tipo, monto, categoria, banco, cuenta_producto, descripcion y referencia. ' +
   'Permite acciones como borrar o corregir basadas en contexto reciente. ' +
   'Responde SOLO JSON con: ' +
-  '{"tipo":"gasto|ingreso|ahorro|asignacion|borrar|corregir|none","monto":number|null,"categoria":string|null,"banco":string|null,"cuenta_producto":string|null,"descripcion":string|null,"referencia":"ultima_operacion"|null}. ' +
-  'No inventes bancos. Usa "otros" solo si no hay mejor categoria. ' +
+  '{"tipo":"gasto|ingreso|ahorro|asignacion|retiro_cuenta|borrar|corregir|none","monto":number|null,"categoria":string|null,"banco":string|null,"cuenta_producto":string|null,"descripcion":string|null,"referencia":"ultima_operacion"|null}. ' +
+  'Usa tipo "retiro_cuenta" cuando el usuario RETIRA/SACA/SACA sacó dinero DESDE una cuenta de AHORRO o INVERSIÓN ' +
+  '(ej. reservas de Mercado Pago, fondo mutuo). NO uses "gasto" para eso: "gasto" descuenta el saldo DISPONIBLE del panel, no el ahorro. ' +
+  'En retiro_cuenta obligatorio banco Y cuenta_producto (nombre exacto de la cuenta, ej: reservas, fondo mutuo). ' +
+  'No inventes bancos. Usa "otros" solo si no hay mejor categoria para gastos normales. ' +
   'zapatillas->vestuario, uber->transporte, pizza/comida->comida.';
 
 /** Límite corto para mantener bajo el consumo de tokens. */
@@ -178,7 +181,13 @@ export async function parseMessageWithLlm(text: string): Promise<ParsedMovimient
     console.log('[LLM] accion contextual → fallback a correcciones/reglas locales');
     return null;
   }
-  if (tipo !== 'ingreso' && tipo !== 'gasto' && tipo !== 'ahorro' && tipo !== 'asignacion') {
+  if (
+    tipo !== 'ingreso' &&
+    tipo !== 'gasto' &&
+    tipo !== 'ahorro' &&
+    tipo !== 'asignacion' &&
+    tipo !== 'retiro_cuenta'
+  ) {
     console.warn('[LLM] tipo desconocido:', tipo, '→ fallback regex');
     if (!usaContexto) {
       llmCache.set(key, null);
@@ -198,18 +207,49 @@ export async function parseMessageWithLlm(text: string): Promise<ParsedMovimient
   const categoriaRaw = typeof parsed.categoria === 'string' ? parsed.categoria : '';
   const descripcion = typeof parsed.descripcion === 'string' ? parsed.descripcion : '';
 
-  const categoria = refinarCategoria(categoriaRaw, descripcion, user);
+  const categoria =
+    tipo === 'retiro_cuenta' ? (categoriaRaw || 'retiro') : refinarCategoria(categoriaRaw, descripcion, user);
 
   const bancoRaw = typeof parsed.banco === 'string' ? parsed.banco.trim() : null;
-  const banco = bancoRaw && bancoMencionadoEnTexto(bancoRaw, user) ? bancoRaw : null;
 
-  if (bancoRaw && !banco) {
+  const banco =
+    tipo === 'retiro_cuenta'
+      ? bancoRaw && bancoRaw.length > 0
+        ? bancoRaw
+        : null
+      : bancoRaw && bancoMencionadoEnTexto(bancoRaw, user)
+        ? bancoRaw
+        : null;
+
+  if (tipo !== 'retiro_cuenta' && bancoRaw && !banco) {
     console.warn('[LLM] banco ignorado (no está en el texto):', bancoRaw);
   }
 
   const cuentaRaw = parsed.cuenta_producto;
   const cuentaProducto =
     cuentaRaw === null || cuentaRaw === undefined ? null : String(cuentaRaw).trim() || null;
+
+  if (tipo === 'retiro_cuenta') {
+    const baseRc: ParsedMovimiento = {
+      tipo: 'retiro_cuenta',
+      monto,
+      categoria,
+      descripcion: descripcion || 'retiro desde ahorro',
+      origen: null,
+      destino: null,
+      banco,
+      cuentaProducto,
+    };
+    const resultRc: ParsedMovimiento = { ...baseRc, destino: destinoParaRegistro(baseRc) };
+    if (!usaContexto) {
+      if (llmCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = llmCache.keys().next().value;
+        if (firstKey !== undefined) llmCache.delete(firstKey);
+      }
+      llmCache.set(key, resultRc);
+    }
+    return resultRc;
+  }
 
   const base: ParsedMovimiento = {
     tipo: tipo === 'asignacion' ? 'ingreso' : tipo,

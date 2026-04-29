@@ -18,7 +18,7 @@ function defaultPath(): string {
 }
 
 function isMovimientoTipo(v: string): v is MovimientoTipo {
-  return v === 'ingreso' || v === 'gasto' || v === 'ahorro';
+  return v === 'ingreso' || v === 'gasto' || v === 'ahorro' || v === 'retiro_cuenta';
 }
 
 function parseNormalizacion(raw: unknown): NormalizacionTerminosChilenos {

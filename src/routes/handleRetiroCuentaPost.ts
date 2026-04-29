@@ -11,6 +11,14 @@ import { getSupabaseService } from '../services/supabaseClient.js';
 export interface RetiroCuentaResponse {
   texto: string;
   ok: boolean;
+  movimiento_id?: string;
+  /** Código para mensajes de error en chat (opcional). */
+  error?:
+    | 'banco_no_encontrado'
+    | 'cuenta_no_encontrada'
+    | 'tipo_cuenta_no_ahorro'
+    | 'saldo_insuficiente_cuenta_ahorro'
+    | 'actualizacion_fallo';
 }
 
 function normalizarNombre(s: string): string {
@@ -63,30 +71,44 @@ export async function handleRetiroCuentaPost(
       .maybeSingle();
 
     if (bancoErr || !bancoRow || typeof (bancoRow as { id?: unknown }).id !== 'string') {
-      return { texto: 'No se encontró el banco de esa cuenta.', ok: false };
+      return { texto: 'No se encontró el banco de esa cuenta.', ok: false, error: 'banco_no_encontrado' };
     }
 
     const bancoId = (bancoRow as { id: string }).id;
-    const { data: cuentaRow, error: cuentaErr } = await supabase
+    const cuentaNomBuscada = normalizarNombre(cuentaTrim);
+    const { data: cuentasCand, error: cuentasErr } = await supabase
       .from('cuentas')
       .select('id, nombre, tipo, saldo')
       .eq('auth_user_id', uid)
       .eq('banco_id', bancoId)
-      .eq('nombre', cuentaTrim)
-      .maybeSingle();
+      .in('tipo', ['ahorro', 'inversion']);
 
-    if (cuentaErr || !cuentaRow) {
-      return { texto: 'No se encontró la cuenta de ahorro.', ok: false };
+    if (cuentasErr) {
+      return { texto: 'No se pudo leer las cuentas.', ok: false, error: 'actualizacion_fallo' };
     }
 
-    const cuenta = cuentaRow as { id: string; nombre: string; tipo: string; saldo: number | string };
-    if (cuenta.tipo !== 'ahorro' && cuenta.tipo !== 'inversion') {
-      return { texto: 'Los retiros con este botón solo están disponibles para cuentas de ahorro.', ok: false };
+    const rows =
+      ((cuentasCand ?? []) as { id: string; nombre: string; tipo: string; saldo: number | string }[]) ?? [];
+
+    let cuentaRow = rows.find((r) => normalizarNombre(r.nombre) === cuentaNomBuscada) ?? null;
+    if (!cuentaRow) {
+      cuentaRow = rows.find((r) => normalizarNombre(r.nombre).includes(cuentaNomBuscada)) ?? null;
     }
+    if (!cuentaRow) {
+      return { texto: 'No se encontró la cuenta de ahorro o inversión.', ok: false, error: 'cuenta_no_encontrada' };
+    }
+
+    const cuenta = cuentaRow;
+
+    const cuentaNombreReal = cuenta.nombre.trim() || cuentaTrim;
 
     const saldoActual = Number(cuenta.saldo);
     if (!Number.isFinite(saldoActual) || saldoActual < montoRedondeado) {
-      return { texto: 'Saldo insuficiente en esa cuenta de ahorro.', ok: false };
+      return {
+        texto: 'Saldo insuficiente en esa cuenta de ahorro.',
+        ok: false,
+        error: 'saldo_insuficiente_cuenta_ahorro',
+      };
     }
 
     const { error: updCuentaErr } = await supabase
@@ -96,7 +118,7 @@ export async function handleRetiroCuentaPost(
       .eq('id', cuenta.id);
 
     if (updCuentaErr) {
-      return { texto: 'No se pudo actualizar la cuenta.', ok: false };
+      return { texto: 'No se pudo actualizar la cuenta.', ok: false, error: 'actualizacion_fallo' };
     }
 
     const { data: balanceRow } = await supabase
@@ -114,23 +136,37 @@ export async function handleRetiroCuentaPost(
       })
       .eq('auth_user_id', uid);
 
-    await supabase.from('movimientos').insert({
-      tipo: 'ahorro',
-      monto: -montoRedondeado,
-      categoria: 'retiro_ahorro',
-      descripcion: `Retiro desde ${bancoTrim} · ${cuentaTrim}`,
-      origen: `${bancoTrim} · ${cuentaTrim}`,
-      destino: 'retiro',
-      cuenta_id: cuenta.id,
-      auth_user_id: uid,
-    });
+    const descripcionLine = `${bancoTrim} · ${cuentaNombreReal}`;
+    const { data: insertMov, error: insertErr } = await supabase
+      .from('movimientos')
+      .insert({
+        tipo: 'ahorro',
+        monto: -montoRedondeado,
+        categoria: 'retiro_ahorro',
+        descripcion: `Retiro desde ${descripcionLine}`,
+        origen: descripcionLine,
+        destino: 'retiro',
+        cuenta_id: cuenta.id,
+        auth_user_id: uid,
+      })
+      .select('id')
+      .maybeSingle();
+
+    if (insertErr) {
+      return { texto: 'No se pudo registrar el retiro.', ok: false, error: 'actualizacion_fallo' };
+    }
+
+    const movimientoId =
+      insertMov && typeof (insertMov as { id?: unknown }).id === 'string'
+        ? String((insertMov as { id: string }).id)
+        : undefined;
 
     const m = formatoMontoAsistente(montoRedondeado, reglas);
     const saldos = await obtenerSaldosBalancesDesdeBd();
-    const lineas = [`✔ Retiro registrado: ${m} desde ${bancoTrim} · ${cuentaTrim}`];
+    const lineas = [`✔ Retiro registrado: ${m} desde ${descripcionLine}`];
     if (saldos) {
       lineas.push(`Saldo ahorrado: ${formatoMontoAsistente(saldos.saldo_ahorrado, reglas)}`);
     }
-    return { texto: lineas.join('\n'), ok: true };
+    return { texto: lineas.join('\n'), ok: true, movimiento_id: movimientoId };
   });
 }
