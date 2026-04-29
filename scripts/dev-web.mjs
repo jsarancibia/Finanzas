@@ -17,6 +17,7 @@ const distChatHistory = path.resolve(root, 'dist', 'routes', 'handleChatHistoryG
 const distChatClear = path.resolve(root, 'dist', 'routes', 'handleChatClearPost.js');
 const distResumen = path.resolve(root, 'dist', 'routes', 'handleResumenCuentasGet.js');
 const distIngresoCuenta = path.resolve(root, 'dist', 'routes', 'handleIngresoCuentaPost.js');
+const distRetiroCuenta = path.resolve(root, 'dist', 'routes', 'handleRetiroCuentaPost.js');
 const distCrearCuenta = path.resolve(root, 'dist', 'routes', 'handleCrearCuentaPost.js');
 const distEliminarCuenta = path.resolve(root, 'dist', 'routes', 'handleEliminarCuentaPost.js');
 const distVerify = path.resolve(root, 'dist', 'services', 'verifySessionToken.js');
@@ -29,6 +30,7 @@ const API_WITH_OPTIONS = [
   '/api/auth-config',
   '/api/auth-session',
   '/api/ingreso-cuenta',
+  '/api/retiro-cuenta',
   '/api/crear-cuenta',
   '/api/eliminar-cuenta',
 ];
@@ -95,6 +97,7 @@ const server = http.createServer(async (req, res) => {
       '/api/chat',
       '/api/chat-clear',
       '/api/ingreso-cuenta',
+      '/api/retiro-cuenta',
       '/api/crear-cuenta',
       '/api/eliminar-cuenta',
     ];
@@ -316,6 +319,52 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const out = await handleIngresoCuentaPost(monto, banco, cuentaProducto, user.id);
+      res.writeHead(out.ok ? 200 : 422, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(out));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: msg }));
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/retiro-cuenta') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const user = await requireAuthDev(req, res);
+    if (!user) {
+      return;
+    }
+    try {
+      if (!fs.existsSync(distRetiroCuenta)) {
+        res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Falta dist/. Ejecuta antes: npm run build' }));
+        return;
+      }
+      const { handleRetiroCuentaPost } = await import(pathToFileURL(distRetiroCuenta).href);
+      const raw = await readBody(req);
+      let body;
+      try {
+        body = raw ? JSON.parse(raw) : {};
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'JSON inválido' }));
+        return;
+      }
+      const monto = Number(body.monto);
+      if (!Number.isFinite(monto) || monto <= 0) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Monto inválido' }));
+        return;
+      }
+      const banco = typeof body.banco === 'string' ? body.banco.trim() : '';
+      const cuentaProducto = typeof body.cuentaProducto === 'string' ? body.cuentaProducto.trim() : '';
+      if (!banco || !cuentaProducto) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Falta banco o cuentaProducto' }));
+        return;
+      }
+      const out = await handleRetiroCuentaPost(monto, banco, cuentaProducto, user.id);
       res.writeHead(out.ok ? 200 : 422, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(out));
     } catch (e) {

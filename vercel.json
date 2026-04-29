@@ -42,6 +42,9 @@
     "api/ingreso-cuenta.mjs": {
       "includeFiles": "{dist/**,config/**,lib/**}"
     },
+    "api/retiro-cuenta.mjs": {
+      "includeFiles": "{dist/**,config/**,lib/**}"
+    },
     "api/crear-cuenta.mjs": {
       "includeFiles": "{dist/**,config/**,lib/**}"
     },

@@ -113,7 +113,7 @@ export async function runApp({ getAuthHeaders, authUserId }) {
          * @param {string} montoStr
          * @param {string} variant - disponible | ahorro | gasto | pendiente
          * @param {string} fechaStr
-         * @param {{ banco: string, cuentaProducto: string } | null} [addOpts] - si se pasa, agrega botón "+"
+         * @param {{ banco: string, cuentaProducto: string, tipo?: string } | null} [addOpts] - si se pasa, agrega botones de acción
          */
         function elFinCard(nombre, bancoLine, montoStr, variant, fechaStr, addOpts) {
           const card = document.createElement("article");
@@ -146,8 +146,11 @@ export async function runApp({ getAuthHeaders, authUserId }) {
             const delBtn = document.createElement("button");
             delBtn.type = "button";
             delBtn.className = "fin-card__del-btn";
-            delBtn.title = "Eliminar esta cuenta (solo si no tiene movimientos)";
-            delBtn.setAttribute("aria-label", "Eliminar cuenta");
+            const esCuentaAhorro = addOpts.tipo === "ahorro" || addOpts.tipo === "inversion";
+            delBtn.title = esCuentaAhorro
+              ? "Retirar dinero de esta cuenta"
+              : "Eliminar esta cuenta (solo si no tiene movimientos)";
+            delBtn.setAttribute("aria-label", esCuentaAhorro ? "Retirar dinero" : "Eliminar cuenta");
             delBtn.textContent = "\u2212";
 
             const addBtn = document.createElement("button");
@@ -180,7 +183,15 @@ export async function runApp({ getAuthHeaders, authUserId }) {
             addForm.appendChild(confirmBtn);
             card.appendChild(addForm);
 
+            let addFormMode = "ingreso";
+            function prepararFormulario(mode) {
+              addFormMode = mode;
+              inp.placeholder = mode === "retiro" ? "Monto a retirar" : "Monto";
+              confirmBtn.textContent = mode === "retiro" ? "Retirar" : "OK";
+            }
+
             addBtn.addEventListener("click", () => {
+              prepararFormulario("ingreso");
               addForm.hidden = !addForm.hidden;
               if (!addForm.hidden) {
                 inp.focus();
@@ -188,6 +199,15 @@ export async function runApp({ getAuthHeaders, authUserId }) {
             });
 
             delBtn.addEventListener("click", async () => {
+              if (esCuentaAhorro) {
+                prepararFormulario("retiro");
+                addForm.hidden = !addForm.hidden;
+                if (!addForm.hidden) {
+                  inp.focus();
+                }
+                return;
+              }
+
               const nomTarjeta = (nombre || "\u2014").trim();
               const conf = window.confirm(
                 `\u00bfEliminar la cuenta \u00ab${nomTarjeta}\u00bb (${addOpts.banco} \u00b7 ${addOpts.cuentaProducto})?\n\n` +
@@ -235,7 +255,9 @@ export async function runApp({ getAuthHeaders, authUserId }) {
               delBtn.disabled = true;
               confirmBtn.textContent = "…";
               try {
-                const res = await authFetch("/api/ingreso-cuenta", {
+                const res = await authFetch(
+                  addFormMode === "retiro" ? "/api/retiro-cuenta" : "/api/ingreso-cuenta",
+                  {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
@@ -248,7 +270,9 @@ export async function runApp({ getAuthHeaders, authUserId }) {
                 const data = ct.includes("application/json") ? await res.json() : null;
                 const texto = (data && typeof data.texto === "string")
                   ? data.texto
-                  : (res.ok ? "Ingreso registrado." : "Error al registrar.");
+                  : (res.ok
+                    ? (addFormMode === "retiro" ? "Retiro registrado." : "Ingreso registrado.")
+                    : "Error al registrar.");
                 appendBubble("assistant", texto, { warn: !res.ok });
                 addForm.hidden = true;
                 inp.value = "";
@@ -259,7 +283,7 @@ export async function runApp({ getAuthHeaders, authUserId }) {
                 confirmBtn.disabled = false;
                 addBtn.disabled = false;
                 delBtn.disabled = false;
-                confirmBtn.textContent = "OK";
+                confirmBtn.textContent = addFormMode === "retiro" ? "Retirar" : "OK";
               }
             }
 
@@ -536,7 +560,7 @@ export async function runApp({ getAuthHeaders, authUserId }) {
               for (const c of disp) {
                 if (!c) continue;
                 const banco = c.banco && String(c.banco).trim() ? String(c.banco).trim() : null;
-                const addOpts = banco ? { banco, cuentaProducto: String(c.nombre || "") } : null;
+                const addOpts = banco ? { banco, cuentaProducto: String(c.nombre || ""), tipo: "disponible" } : null;
                 s1.cards.appendChild(
                   elFinCard(String(c.nombre || "\u2014"), banco, formatMonto(c.monto, moneda), "disponible", "", addOpts),
                 );
@@ -557,11 +581,19 @@ export async function runApp({ getAuthHeaders, authUserId }) {
               for (const c of ahr) {
                 if (!c) continue;
                 const banco = c.banco && String(c.banco).trim() ? String(c.banco).trim() : null;
-                const addOpts = banco ? { banco, cuentaProducto: String(c.nombre || "") } : null;
-                const card = elFinCard(String(c.nombre || "\u2014"), banco, formatMonto(c.monto, moneda), "ahorro", "", addOpts);
+                const addOpts = banco ? { banco, cuentaProducto: String(c.nombre || ""), tipo: "ahorro" } : null;
+                let sim = null;
+                let montoVisible = c.monto;
+                if (c.rentabilidad && c.rentabilidad.tasa > 0 && c.monto > 0) {
+                  sim = calcularRentabilidadSimulada(new Date(), c.monto, c.rentabilidad.tasa);
+                  if (sim.ganancia_visible_hoy > 0) {
+                    montoVisible += sim.ganancia_visible_hoy;
+                  }
+                }
+                const card = elFinCard(String(c.nombre || "\u2014"), banco, formatMonto(montoVisible, moneda), "ahorro", "", addOpts);
                 if (c.rentabilidad && c.rentabilidad.tasa > 0 && c.monto > 0) {
                   const r = c.rentabilidad;
-                  const sim = calcularRentabilidadSimulada(new Date(), c.monto, r.tasa);
+                  sim = sim || calcularRentabilidadSimulada(new Date(), c.monto, r.tasa);
 
                   const bloque = document.createElement("div");
                   bloque.className = "fin-card__rentabilidad";
